@@ -413,6 +413,21 @@ p {
   color: var(--accent);
 }
 
+.toast.compact-toast {
+  justify-self: center;
+  width: max-content;
+  max-width: min(82vw, 320px);
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 0.86rem;
+  line-height: 1.25;
+}
+
+.toast.compact-toast strong {
+  display: inline;
+  margin-right: 6px;
+}
+
 .keyboard-hints {
   position: absolute;
   z-index: 3;
@@ -467,11 +482,62 @@ p {
     top: 10px;
     left: 10px;
     right: 10px;
+    gap: 8px;
+  }
+
+  .score-card,
+  .power-card,
+  .icon-btn {
+    padding: 7px 10px;
+  }
+
+  .score-card {
+    min-width: 78px;
+  }
+
+  .score-card span {
+    font-size: 0.62rem;
+  }
+
+  .score-card strong {
+    font-size: 1.18rem;
   }
 
   .power-card {
-    max-width: 42vw;
-    font-size: 0.82rem;
+    max-width: 38vw;
+    font-size: 0.72rem;
+    align-self: flex-start;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .icon-btn {
+    width: 40px;
+    min-height: 40px;
+    font-size: 1rem;
+  }
+
+  .toast-layer {
+    top: 58px;
+    width: min(86vw, 300px);
+    gap: 6px;
+  }
+
+  .toast {
+    justify-self: center;
+    width: max-content;
+    max-width: min(82vw, 300px);
+    padding: 8px 11px;
+    font-size: 0.78rem;
+    line-height: 1.25;
+    box-shadow: 0 10px 26px rgba(0, 0, 0, 0.28);
+    animation-duration: 2.05s;
+  }
+
+  .toast strong {
+    display: inline;
+    margin-right: 5px;
   }
 
   .keyboard-hints {

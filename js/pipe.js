@@ -60,19 +60,7 @@ class PipePair {
     ctx.fill();
 
     if (this.milestone) {
-      ctx.globalAlpha = 0.72;
-      ctx.strokeStyle = palette.ring;
-      ctx.lineWidth = 3;
-      this.roundRect(ctx, x + 5, y + 8, width - 10, Math.max(0, height - 16), 8);
-      ctx.stroke();
-
-      ctx.globalAlpha = 0.9;
-      ctx.fillStyle = "#ffffff";
-      ctx.font = "900 13px system-ui";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      const labelY = top ? Math.max(28, capY - 18) : capY + this.capHeight + 19;
-      ctx.fillText(`${this.sequence}`, x + width / 2, labelY);
+      this.drawMilestoneDetails(ctx, x, y, width, height, palette, top);
     }
 
     ctx.globalAlpha = 0.18;
@@ -82,21 +70,65 @@ class PipePair {
   }
 
   drawMilestoneAura(ctx, height) {
-    const bottomY = this.gapY + this.gap;
     const palette = this.getPalette();
     ctx.save();
-    ctx.globalAlpha = 0.2 + Math.sin(this.phase) * 0.06;
+    ctx.globalAlpha = 0.16 + Math.sin(this.phase) * 0.04;
     const beam = ctx.createLinearGradient(this.x, 0, this.x + this.width, 0);
     beam.addColorStop(0, "rgba(255,255,255,0)");
     beam.addColorStop(0.5, palette.beam);
     beam.addColorStop(1, "rgba(255,255,255,0)");
     ctx.fillStyle = beam;
-    ctx.fillRect(this.x - 18, this.gapY, this.width + 36, this.gap);
+    ctx.fillRect(this.x - 26, this.gapY + 8, this.width + 52, this.gap - 16);
+
+    const pulse = ctx.createRadialGradient(
+      this.x + this.width / 2,
+      this.gapY + this.gap / 2,
+      8,
+      this.x + this.width / 2,
+      this.gapY + this.gap / 2,
+      this.gap * 0.72
+    );
+    pulse.addColorStop(0, palette.beam);
+    pulse.addColorStop(0.42, "rgba(255,255,255,0.08)");
+    pulse.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = pulse;
+    ctx.fillRect(this.x - this.gap * 0.35, this.gapY - 10, this.width + this.gap * 0.7, this.gap + 20);
+    ctx.restore();
+  }
+
+  drawMilestoneDetails(ctx, x, y, width, height, palette, top) {
+    const stripeY = top ? y + height - this.capHeight - 10 : y + this.capHeight + 10;
+    const stripeHeight = Math.min(18, Math.max(8, height * 0.16));
+    const shine = ctx.createLinearGradient(x, y, x + width, y);
+    shine.addColorStop(0, "rgba(255,255,255,0)");
+    shine.addColorStop(0.5, "rgba(255,255,255,0.46)");
+    shine.addColorStop(1, "rgba(255,255,255,0)");
+
+    ctx.save();
+    ctx.globalAlpha = 0.68 + Math.sin(this.phase) * 0.12;
+    ctx.fillStyle = shine;
+    this.roundRect(ctx, x + 8, stripeY, width - 16, stripeHeight, 7);
+    ctx.fill();
+
+    ctx.globalAlpha = 0.82;
     ctx.strokeStyle = palette.ring;
     ctx.lineWidth = 2;
-    ctx.setLineDash([10, 9]);
-    ctx.lineDashOffset = -this.phase * 12;
-    ctx.strokeRect(this.x - 10, this.gapY + 8, this.width + 20, Math.max(12, bottomY - this.gapY - 16));
+    ctx.beginPath();
+    ctx.moveTo(x + 8, stripeY + stripeHeight * 0.5);
+    ctx.lineTo(x + width - 8, stripeY + stripeHeight * 0.5);
+    ctx.stroke();
+
+    ctx.fillStyle = palette.ring;
+    for (let dotX = x + 16; dotX < x + width - 10; dotX += 16) {
+      const dotY = stripeY + stripeHeight * 0.5 + Math.sin(this.phase + dotX * 0.05) * 2;
+      ctx.beginPath();
+      ctx.arc(dotX, dotY, 2.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.globalAlpha = 0.22;
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(x + width - 18, y + 10, 5, Math.max(0, height - 20));
     ctx.restore();
   }
 
@@ -177,25 +209,97 @@ class PowerUp {
       double: "#ffe066",
       ghost: "#d6ccff"
     };
-    const labels = {
-      shield: "S",
-      slow: "T",
-      double: "2",
-      ghost: "G"
-    };
     ctx.save();
     ctx.translate(this.x, this.y + Math.sin(this.phase) * 5);
     ctx.shadowColor = colors[this.type];
     ctx.shadowBlur = 20;
-    ctx.fillStyle = colors[this.type];
+    const orb = ctx.createRadialGradient(-6, -7, 2, 0, 0, this.radius + 4);
+    orb.addColorStop(0, "#ffffff");
+    orb.addColorStop(0.35, colors[this.type]);
+    orb.addColorStop(1, "rgba(23,52,77,0.88)");
+    ctx.fillStyle = orb;
     ctx.beginPath();
     ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = "#17344d";
-    ctx.font = "900 17px system-ui";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(labels[this.type], 0, 1);
+
+    ctx.strokeStyle = "rgba(255,255,255,0.72)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(0, 0, this.radius - 2, 0, Math.PI * 2);
+    ctx.stroke();
+
+    this.drawIcon(ctx, colors[this.type]);
+    ctx.restore();
+  }
+
+  drawIcon(ctx, color) {
+    ctx.save();
+    ctx.fillStyle = "#10263b";
+    ctx.strokeStyle = "#10263b";
+    ctx.lineWidth = 2.4;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+
+    if (this.type === "shield") {
+      ctx.beginPath();
+      ctx.moveTo(0, -10);
+      ctx.lineTo(10, -5);
+      ctx.quadraticCurveTo(8, 8, 0, 12);
+      ctx.quadraticCurveTo(-8, 8, -10, -5);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = "rgba(255,255,255,0.75)";
+      ctx.beginPath();
+      ctx.moveTo(0, -6);
+      ctx.lineTo(0, 8);
+      ctx.stroke();
+    }
+
+    if (this.type === "slow") {
+      ctx.beginPath();
+      ctx.arc(0, 1, 10, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(0, 1);
+      ctx.lineTo(0, -6);
+      ctx.moveTo(0, 1);
+      ctx.lineTo(6, 5);
+      ctx.stroke();
+      ctx.fillStyle = "#10263b";
+      ctx.fillRect(-4, -13, 8, 3);
+    }
+
+    if (this.type === "double") {
+      ctx.font = "900 14px system-ui";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("x2", 0, 1);
+      ctx.strokeStyle = "rgba(255,255,255,0.8)";
+      ctx.beginPath();
+      ctx.arc(0, 0, 12, -0.8, 0.8);
+      ctx.stroke();
+    }
+
+    if (this.type === "ghost") {
+      ctx.beginPath();
+      ctx.moveTo(-9, 9);
+      ctx.lineTo(-9, -2);
+      ctx.quadraticCurveTo(-9, -11, 0, -11);
+      ctx.quadraticCurveTo(9, -11, 9, -2);
+      ctx.lineTo(9, 9);
+      ctx.lineTo(5, 6);
+      ctx.lineTo(1, 9);
+      ctx.lineTo(-3, 6);
+      ctx.lineTo(-7, 9);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(-3, -2, 1.8, 0, Math.PI * 2);
+      ctx.arc(4, -2, 1.8, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
     ctx.restore();
   }
 

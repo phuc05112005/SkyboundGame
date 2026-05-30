@@ -183,11 +183,11 @@ class GameUI {
     this.muteButton.setAttribute("aria-label", muted ? "Unmute" : "Mute");
   }
 
-  toast(title, message = "") {
+  toast(title, message = "", compact = false) {
     const node = document.createElement("div");
-    node.className = "toast";
+    node.className = compact ? "toast compact-toast" : "toast";
     node.innerHTML = `<strong>${title}</strong>${message}`;
     this.toastLayer.appendChild(node);
-    window.setTimeout(() => node.remove(), 2900);
+    window.setTimeout(() => node.remove(), compact ? 2100 : 2900);
   }
 }

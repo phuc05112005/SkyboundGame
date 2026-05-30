@@ -476,7 +476,7 @@ class SkyboundGame {
       subtext: this.biomes[this.biomeIndex].name,
       life: 2.4
     };
-    this.ui.toast(`Gate ${sequence}`, `${this.biomes[this.biomeIndex].name} unlocked.`);
+    this.ui.toast(`Gate ${sequence}`, this.biomes[this.biomeIndex].name, true);
     if (this.effectsEnabled) {
       this.particles.burst(this.width * 0.5, this.height * 0.32, 70, {
         speed: 300,
@@ -509,7 +509,7 @@ class SkyboundGame {
     if (type === "ghost") this.player.applyPower("ghost", 5.5);
     if (type === "double") this.player.applyPower("double", 8);
     if (type === "slow") this.slowMotion = 5.8;
-    this.ui.toast(names[type], "Power-up activated.");
+    this.ui.toast(names[type], "Activated", true);
     this.audio.point();
     if (this.effectsEnabled) this.particles.score(this.player.x, this.player.y);
   }
@@ -811,18 +811,22 @@ class SkyboundGame {
     if (!this.milestoneBanner) return;
     const alpha = Math.min(1, this.milestoneBanner.life / 0.55, (2.4 - this.milestoneBanner.life) / 0.25);
     const biome = this.getActiveBiome();
+    const mobileScale = this.width < 680 ? 0.66 : 1;
+    const titleSize = Math.max(24, 44 * mobileScale);
+    const subtitleSize = Math.max(12, 18 * mobileScale);
+    const y = this.height * (this.width < 680 ? 0.18 : 0.22);
     ctx.save();
     ctx.globalAlpha = Math.max(0, alpha);
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.shadowColor = biome.accent;
-    ctx.shadowBlur = 26;
+    ctx.shadowBlur = this.width < 680 ? 16 : 26;
     ctx.fillStyle = "#ffffff";
-    ctx.font = "900 44px system-ui";
-    ctx.fillText(this.milestoneBanner.text, this.width / 2, this.height * 0.22);
-    ctx.font = "800 18px system-ui";
+    ctx.font = `900 ${titleSize}px system-ui`;
+    ctx.fillText(this.milestoneBanner.text, this.width / 2, y);
+    ctx.font = `800 ${subtitleSize}px system-ui`;
     ctx.fillStyle = "rgba(255,255,255,0.86)";
-    ctx.fillText(this.milestoneBanner.subtext, this.width / 2, this.height * 0.22 + 42);
+    ctx.fillText(this.milestoneBanner.subtext, this.width / 2, y + 42 * mobileScale);
     ctx.restore();
   }
 
