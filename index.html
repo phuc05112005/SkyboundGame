@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Skybound Wings - a polished HTML5 Canvas arcade flying game.">
+  <title>Skybound Wings</title>
+  <link rel="icon" id="favicon" type="image/png" href="">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+  <main id="app" class="app-shell">
+    <canvas id="gameCanvas" aria-label="Skybound Wings game canvas"></canvas>
+
+    <section id="mainMenu" class="screen glass-panel active" aria-labelledby="gameTitle">
+      <div class="brand">
+        <canvas id="brandLogo" class="brand-mark" width="96" height="96" aria-hidden="true"></canvas>
+        <p class="eyebrow">A Small Flight, A Braver Sky</p>
+        <h1 id="gameTitle">Skybound Wings</h1>
+      </div>
+      <div class="menu-actions">
+        <button class="primary-btn" data-action="start">Start Game</button>
+        <button class="ghost-btn" data-action="customize">Customize Bird</button>
+        <button class="ghost-btn" data-action="settings">Settings</button>
+        <button class="ghost-btn" data-action="credits">Credits</button>
+      </div>
+      <div class="stats-strip">
+        <article>
+          <span>High Score</span>
+          <strong id="menuHighScore">0</strong>
+        </article>
+        <article>
+          <span>Total Games</span>
+          <strong id="menuTotalGames">0</strong>
+        </article>
+        <article>
+          <span>Best Streak</span>
+          <strong id="menuBestStreak">0</strong>
+        </article>
+      </div>
+    </section>
+
+    <section id="customizePanel" class="screen glass-panel wide-panel" aria-labelledby="customizeTitle">
+      <h2 id="customizeTitle">Customize Bird</h2>
+      <div class="customize-layout">
+        <div class="skin-preview-card">
+          <canvas id="skinPreview" width="220" height="160" aria-label="Skin preview"></canvas>
+          <strong id="skinName">Classic Finch</strong>
+        </div>
+        <div class="customize-controls">
+          <div class="skin-grid" id="skinGrid" aria-label="Choose bird skin"></div>
+          <label class="color-row">
+            <span>Body</span>
+            <input id="bodyColorPicker" type="color" value="#ffd166">
+          </label>
+          <label class="color-row">
+            <span>Wing</span>
+            <input id="wingColorPicker" type="color" value="#ffbf69">
+          </label>
+          <label class="color-row">
+            <span>Beak / Accent</span>
+            <input id="accentColorPicker" type="color" value="#ff7b54">
+          </label>
+          <label class="color-row">
+            <span>Glow</span>
+            <input id="glowColorPicker" type="color" value="#ffd166">
+          </label>
+        </div>
+      </div>
+      <div class="panel-actions two-column-actions">
+        <button class="primary-btn" data-action="save-skin">Apply Skin</button>
+        <button class="ghost-btn" data-action="random-skin">Randomize</button>
+        <button class="ghost-btn" data-action="reset-skin">Reset</button>
+        <button class="ghost-btn" data-action="back-menu">Back</button>
+      </div>
+    </section>
+
+    <section id="settingsPanel" class="screen glass-panel" aria-labelledby="settingsTitle">
+      <h2 id="settingsTitle">Settings</h2>
+      <label class="setting-row">
+        <span>Volume</span>
+        <input id="volumeSlider" type="range" min="0" max="1" step="0.01" value="0.7">
+      </label>
+      <label class="setting-row toggle-row">
+        <span>Music</span>
+        <input id="musicToggle" type="checkbox" checked>
+      </label>
+      <label class="setting-row toggle-row">
+        <span>Sound Effects</span>
+        <input id="sfxToggle" type="checkbox" checked>
+      </label>
+      <label class="setting-row toggle-row">
+        <span>Visual Effects</span>
+        <input id="effectsToggle" type="checkbox" checked>
+      </label>
+      <label class="setting-row">
+        <span>Difficulty</span>
+        <select id="difficultySelect">
+          <option value="easy">Easy</option>
+          <option value="normal" selected>Normal</option>
+          <option value="hard">Hard</option>
+          <option value="insane">Insane</option>
+        </select>
+      </label>
+      <div class="panel-actions">
+        <button class="primary-btn" data-action="save-settings">Apply</button>
+        <button class="ghost-btn" data-action="back-menu">Back</button>
+      </div>
+    </section>
+
+    <section id="creditsPanel" class="screen glass-panel" aria-labelledby="creditsTitle">
+      <h2 id="creditsTitle">Credits</h2>
+      <p>Designed and coded as a pure HTML5 Canvas portfolio game. Art, particles, animation, audio, and UI are
+        generated with Canvas, CSS, SVG, and Web Audio API.</p>
+      <button class="primary-btn" data-action="back-menu">Back</button>
+    </section>
+
+    <section id="pausePanel" class="screen glass-panel compact" aria-labelledby="pauseTitle">
+      <h2 id="pauseTitle">Paused</h2>
+      <p>Take a breath above the clouds.</p>
+      <div class="panel-actions">
+        <button class="primary-btn" data-action="resume">Resume</button>
+        <button class="ghost-btn" data-action="restart">Restart</button>
+        <button class="ghost-btn" data-action="back-menu">Menu</button>
+      </div>
+    </section>
+
+    <section id="gameOverPanel" class="screen glass-panel compact" aria-labelledby="gameOverTitle">
+      <h2 id="gameOverTitle">Flight Ended</h2>
+      <div class="result-grid">
+        <span>Score</span>
+        <strong id="finalScore">0</strong>
+        <span>Best</span>
+        <strong id="finalBest">0</strong>
+      </div>
+      <div class="panel-actions">
+        <button class="primary-btn" data-action="restart">Try Again</button>
+        <button class="ghost-btn" data-action="back-menu">Menu</button>
+      </div>
+    </section>
+
+    <div id="hud" class="hud hidden">
+      <div class="score-card">
+        <span>Score</span>
+        <strong id="scoreText">0</strong>
+      </div>
+      <div class="power-card" id="powerStatus">Ready</div>
+      <button id="muteButton" class="icon-btn" aria-label="Toggle mute">M</button>
+    </div>
+
+    <div id="toastLayer" class="toast-layer" aria-live="polite"></div>
+    <div class="keyboard-hints" aria-hidden="true">SPACE Fly | P Pause | R Restart | ESC Menu</div>
+  </main>
+
+  <script src="js/storage.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/particle.js"></script>
+  <script src="js/player.js"></script>
+  <script src="js/pipe.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/game.js"></script>
+</body>
+
+</html>
