@@ -9,6 +9,8 @@ class GameStorage {
       settings: {
         volume: 0.7,
         muted: false,
+        music: true,
+        sfx: true,
         effects: true,
         difficulty: "normal"
       },

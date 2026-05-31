@@ -16,9 +16,12 @@ class GameUI {
     this.toastLayer = document.getElementById("toastLayer");
     this.muteButton = document.getElementById("muteButton");
     this.volumeSlider = document.getElementById("volumeSlider");
+    this.musicToggle = document.getElementById("musicToggle");
+    this.sfxToggle = document.getElementById("sfxToggle");
     this.effectsToggle = document.getElementById("effectsToggle");
     this.difficultySelect = document.getElementById("difficultySelect");
     this.skinPreview = document.getElementById("skinPreview");
+    this.brandLogo = document.getElementById("brandLogo");
     this.skinName = document.getElementById("skinName");
     this.skinGrid = document.getElementById("skinGrid");
     this.bodyColorPicker = document.getElementById("bodyColorPicker");
@@ -42,6 +45,7 @@ class GameUI {
     this.buildSkinGrid();
     this.syncSettings();
     this.syncSkinControls();
+    this.drawBrandLogo();
     this.refreshStats();
   }
 
@@ -98,6 +102,8 @@ class GameUI {
   syncSettings() {
     const settings = this.storage.getSettings();
     this.volumeSlider.value = settings.volume;
+    this.musicToggle.checked = settings.music;
+    this.sfxToggle.checked = settings.sfx;
     this.effectsToggle.checked = settings.effects;
     this.difficultySelect.value = settings.difficulty;
     this.setMuted(settings.muted);
@@ -106,6 +112,8 @@ class GameUI {
   readSettings() {
     return {
       volume: Number(this.volumeSlider.value),
+      music: this.musicToggle.checked,
+      sfx: this.sfxToggle.checked,
       effects: this.effectsToggle.checked,
       difficulty: this.difficultySelect.value
     };
@@ -156,6 +164,89 @@ class GameUI {
     ctx.restore();
   }
 
+  drawBrandLogo() {
+    if (!this.brandLogo) return;
+    const canvas = this.brandLogo;
+    const ctx = canvas.getContext("2d");
+    const w = canvas.width;
+    const h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+
+    // Bo góc
+    const r = 18;
+    const path = () => {
+      ctx.beginPath();
+      ctx.moveTo(r, 0); ctx.lineTo(w - r, 0);
+      ctx.quadraticCurveTo(w, 0, w, r);
+      ctx.lineTo(w, h - r); ctx.quadraticCurveTo(w, h, w - r, h);
+      ctx.lineTo(r, h); ctx.quadraticCurveTo(0, h, 0, h - r);
+      ctx.lineTo(0, r); ctx.quadraticCurveTo(0, 0, r, 0);
+      ctx.closePath();
+    };
+
+    // Nền: gradient xanh trời → tím xanh sâu — bầu trời lúc hoàng hôn
+    path();
+    const bg = ctx.createLinearGradient(0, 0, w, h);
+    bg.addColorStop(0, "#1a6eb5");
+    bg.addColorStop(0.42, "#0e4a8a");
+    bg.addColorStop(1, "#071e3d");
+    ctx.fillStyle = bg;
+    ctx.fill();
+
+    // Lớp sáng góc trên — cảm giác bầu trời
+    path();
+    const sky = ctx.createRadialGradient(w * 0.28, h * 0.18, 2, w * 0.28, h * 0.18, w * 0.72);
+    sky.addColorStop(0, "rgba(120,200,255,0.38)");
+    sky.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = sky;
+    ctx.fill();
+
+    // Vầng sáng vàng phía sau chim — hiệu ứng mặt trời
+    const sunGlow = ctx.createRadialGradient(w * 0.52, h * 0.52, 4, w * 0.52, h * 0.52, w * 0.46);
+    sunGlow.addColorStop(0, "rgba(255,220,80,0.55)");
+    sunGlow.addColorStop(0.5, "rgba(255,160,40,0.22)");
+    sunGlow.addColorStop(1, "rgba(255,120,0,0)");
+    ctx.fillStyle = sunGlow;
+    ctx.beginPath();
+    ctx.arc(w * 0.52, h * 0.52, w * 0.46, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Viền ngoài ánh kim
+    path();
+    ctx.strokeStyle = "rgba(255,220,100,0.45)";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Viền trong sáng nhẹ phía trên
+    path();
+    ctx.strokeStyle = "rgba(255,255,255,0.18)";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Con chim — scale nhỏ lại để vừa khung, dịch tâm sang phải chút (mỏ ở phải)
+    ctx.save();
+    ctx.translate(46, 54);
+    ctx.scale(0.92, 0.92);
+    Player.drawSkin(ctx, {
+      shape: "classic",
+      body: "#ffd166",
+      wing: "#ffbf69",
+      accent: "#ff7b54",
+      glow: "#ffd166"
+    }, 0.85, false, 0, 0);
+    ctx.restore();
+    // Đồng bộ favicon — lấy thẳng từ canvas, giống 100%
+    const dataUrl = canvas.toDataURL("image/png");
+    let favicon = document.querySelector("link[rel='icon']");
+    if (!favicon) {
+      favicon = document.createElement("link");
+      favicon.rel = "icon";
+      document.head.appendChild(favicon);
+    }
+    favicon.type = "image/png";
+    favicon.href = dataUrl;
+  }
+
   refreshStats() {
     const stats = this.storage.getStats();
     document.getElementById("menuHighScore").textContent = stats.highScore;
@@ -179,7 +270,8 @@ class GameUI {
   }
 
   setMuted(muted) {
-    this.muteButton.textContent = muted ? "×" : "♪";
+    this.muteButton.textContent = muted ? "OFF" : "ON";
+    this.muteButton.classList.toggle("is-muted", muted);
     this.muteButton.setAttribute("aria-label", muted ? "Unmute" : "Mute");
   }
 

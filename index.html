@@ -1,20 +1,23 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="Skybound Wings - a polished HTML5 Canvas arcade flying game.">
   <title>Skybound Wings</title>
+  <link rel="icon" id="favicon" type="image/png" href="">
   <link rel="stylesheet" href="css/style.css">
 </head>
+
 <body>
   <main id="app" class="app-shell">
     <canvas id="gameCanvas" aria-label="Skybound Wings game canvas"></canvas>
 
     <section id="mainMenu" class="screen glass-panel active" aria-labelledby="gameTitle">
       <div class="brand">
-        <span class="brand-mark" aria-hidden="true">◆</span>
-        <p class="eyebrow">AAA Canvas Arcade</p>
+        <canvas id="brandLogo" class="brand-mark" width="96" height="96" aria-hidden="true"></canvas>
+        <p class="eyebrow">A Small Flight, A Braver Sky</p>
         <h1 id="gameTitle">Skybound Wings</h1>
       </div>
       <div class="menu-actions">
@@ -81,6 +84,14 @@
         <input id="volumeSlider" type="range" min="0" max="1" step="0.01" value="0.7">
       </label>
       <label class="setting-row toggle-row">
+        <span>Music</span>
+        <input id="musicToggle" type="checkbox" checked>
+      </label>
+      <label class="setting-row toggle-row">
+        <span>Sound Effects</span>
+        <input id="sfxToggle" type="checkbox" checked>
+      </label>
+      <label class="setting-row toggle-row">
         <span>Visual Effects</span>
         <input id="effectsToggle" type="checkbox" checked>
       </label>
@@ -101,7 +112,8 @@
 
     <section id="creditsPanel" class="screen glass-panel" aria-labelledby="creditsTitle">
       <h2 id="creditsTitle">Credits</h2>
-      <p>Designed and coded as a pure HTML5 Canvas portfolio game. Art, particles, animation, audio, and UI are generated with Canvas, CSS, SVG, and Web Audio API.</p>
+      <p>Designed and coded as a pure HTML5 Canvas portfolio game. Art, particles, animation, audio, and UI are
+        generated with Canvas, CSS, SVG, and Web Audio API.</p>
       <button class="primary-btn" data-action="back-menu">Back</button>
     </section>
 
@@ -135,11 +147,11 @@
         <strong id="scoreText">0</strong>
       </div>
       <div class="power-card" id="powerStatus">Ready</div>
-      <button id="muteButton" class="icon-btn" aria-label="Toggle mute">♪</button>
+      <button id="muteButton" class="icon-btn" aria-label="Toggle mute">M</button>
     </div>
 
     <div id="toastLayer" class="toast-layer" aria-live="polite"></div>
-    <div class="keyboard-hints" aria-hidden="true">SPACE Fly · P Pause · R Restart · ESC Menu</div>
+    <div class="keyboard-hints" aria-hidden="true">SPACE Fly | P Pause | R Restart | ESC Menu</div>
   </main>
 
   <script src="js/storage.js"></script>
@@ -150,4 +162,5 @@
   <script src="js/ui.js"></script>
   <script src="js/game.js"></script>
 </body>
+
 </html>

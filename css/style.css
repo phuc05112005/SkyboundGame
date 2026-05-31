@@ -98,15 +98,20 @@ button {
 }
 
 .brand-mark {
-  display: inline-grid;
-  place-items: center;
-  width: 52px;
-  height: 52px;
-  margin-bottom: 12px;
+  width: 76px;
+  height: 76px;
+  margin-bottom: 14px;
   border-radius: 8px;
-  color: #183956;
-  background: linear-gradient(135deg, var(--accent), #fff0a3 48%, var(--accent-2));
-  box-shadow: 0 14px 36px rgba(255, 209, 102, 0.36);
+  display: inline-block;
+  background:
+    radial-gradient(circle at 70% 24%, rgba(255, 255, 255, 0.88) 0 7px, transparent 8px),
+    linear-gradient(145deg, rgba(255, 244, 182, 0.98) 0%, rgba(255, 209, 102, 0.98) 45%, rgba(77, 212, 172, 0.98) 100%);
+  box-shadow:
+    0 18px 42px rgba(255, 209, 102, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.62),
+    inset 0 -10px 24px rgba(8, 42, 54, 0.16);
+  transform: rotate(-5deg);
+  vertical-align: middle;
 }
 
 .eyebrow {
@@ -357,11 +362,27 @@ p {
 }
 
 .icon-btn {
-  width: 48px;
-  background: rgba(255, 255, 255, 0.18);
+  min-width: 64px;
+  height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(90, 255, 214, 0.34), rgba(119, 164, 255, 0.28));
   color: var(--text);
-  border: 1px solid rgba(255, 255, 255, 0.24);
-  font-size: 1.35rem;
+  border: 1px solid rgba(124, 255, 222, 0.54);
+  box-shadow: 0 10px 26px rgba(22, 206, 178, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.34);
+  font-size: 0.78rem;
+  font-weight: 950;
+  letter-spacing: 0.12em;
+  text-align: center;
+  line-height: 1;
+}
+
+.icon-btn.is-muted {
+  background: linear-gradient(135deg, rgba(255, 108, 108, 0.36), rgba(255, 255, 255, 0.12));
+  border-color: rgba(255, 150, 150, 0.58);
+  box-shadow: 0 10px 26px rgba(255, 86, 86, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.28);
 }
 
 .result-grid {
