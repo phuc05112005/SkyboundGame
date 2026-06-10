@@ -19,7 +19,12 @@ class AudioEngine {
       night: { notes: [164, 196, 246, 293, 261, 246, 196, 184], wave: "triangle", tempo: 520, gain: 0.075 },
       volcano: { notes: [130, 164, 196, 246, 220, 196, 164, 146], wave: "square", tempo: 340, gain: 0.055 },
       winter: { notes: [220, 277, 330, 415, 370, 330, 277, 247], wave: "sine", tempo: 540, gain: 0.075 },
-      aurora: { notes: [247, 311, 370, 466, 415, 370, 311, 277], wave: "triangle", tempo: 480, gain: 0.07 }
+      aurora: { notes: [247, 311, 370, 466, 415, 370, 311, 277], wave: "triangle", tempo: 480, gain: 0.07 },
+      desert: { notes: [147, 185, 220, 233, 220, 185, 147, 138], wave: "sawtooth", tempo: 520, gain: 0.065 },
+      sakura: { notes: [261, 329, 392, 493, 440, 392, 329, 293], wave: "sine", tempo: 480, gain: 0.08 },
+      cyber: { notes: [110, 130, 164, 196, 220, 196, 164, 130], wave: "square", tempo: 300, gain: 0.05 },
+      magic: { notes: [247, 293, 370, 440, 493, 440, 370, 293], wave: "triangle", tempo: 440, gain: 0.085 },
+      space: { notes: [196, 294, 392, 587, 493, 392, 294, 196], wave: "sine", tempo: 600, gain: 0.07 }
     };
   }
 
@@ -43,7 +48,7 @@ class AudioEngine {
   applyVolume() {
     if (!this.master) return;
     this.master.gain.value = this.muted ? 0 : this.volume;
-    this.musicGain.gain.value = this.musicEnabled ? 0.18 : 0;
+    this.musicGain.gain.value = this.musicEnabled ? 0.35 : 0; // Increased volume
     this.sfxGain.gain.value = this.sfxEnabled ? 1 : 0;
   }
 
@@ -163,6 +168,11 @@ class AudioEngine {
     else if (moodKey.includes("winter") || moodKey.includes("snow") || moodKey.includes("ice")) this.mood = "winter";
     else if (moodKey.includes("aurora")) this.mood = "aurora";
     else if (moodKey.includes("night")) this.mood = "night";
+    else if (moodKey.includes("desert") || moodKey.includes("sandy")) this.mood = "desert";
+    else if (moodKey.includes("sakura") || moodKey.includes("blossom")) this.mood = "sakura";
+    else if (moodKey.includes("cyber") || moodKey.includes("neon")) this.mood = "cyber";
+    else if (moodKey.includes("magic") || moodKey.includes("enchanted")) this.mood = "magic";
+    else if (moodKey.includes("space") || moodKey.includes("void")) this.mood = "space";
     else this.mood = "azure";
   }
 
@@ -175,28 +185,47 @@ class AudioEngine {
   playMusicStep() {
     if (!this.context || this.muted || !this.musicEnabled) return;
     const mood = this.moods[this.mood] || this.moods.azure;
-    if (this.musicStep % Math.round(mood.tempo / 120) !== 0) {
+    const tempoStep = Math.round(mood.tempo / 120);
+    
+    if (this.musicStep % tempoStep !== 0) {
       this.musicStep += 1;
       return;
     }
-    const index = Math.floor(this.musicStep / Math.round(mood.tempo / 120));
+    
+    const index = Math.floor(this.musicStep / tempoStep);
     const frequency = mood.notes[index % mood.notes.length];
+    
+    // Main melody
     this.playTone({
       frequency,
       type: mood.wave,
-      duration: Math.min(0.46, mood.tempo / 1000),
-      gain: mood.gain,
+      duration: Math.min(0.5, mood.tempo / 900),
+      gain: mood.gain * 1.2,
       destination: this.musicGain
     });
-    if (index % 4 === 0) {
+    
+    // Sub-harmonic / Bass layer (Stronger on beats 1 and 3)
+    if (index % 4 === 0 || index % 4 === 2) {
       this.playTone({
         frequency: frequency / 2,
         type: "sine",
-        duration: 0.52,
-        gain: mood.gain * 0.45,
+        duration: 0.6,
+        gain: mood.gain * 0.8,
         destination: this.musicGain
       });
     }
+
+    // High harmonic layer for sparkle (on off-beats)
+    if (index % 2 === 1) {
+      this.playTone({
+        frequency: frequency * 2,
+        type: "sine",
+        duration: 0.2,
+        gain: mood.gain * 0.4,
+        destination: this.musicGain
+      });
+    }
+
     this.musicStep += 1;
   }
 

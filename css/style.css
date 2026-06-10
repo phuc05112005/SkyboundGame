@@ -38,7 +38,7 @@ button {
   position: relative;
   width: 100vw;
   height: 100vh;
-  min-height: 520px;
+  min-height: -webkit-fill-available;
   overflow: hidden;
   display: grid;
   place-items: center;
@@ -51,18 +51,30 @@ button {
   height: 100%;
   display: block;
   background: #87d8ff;
+  touch-action: none;
 }
 
 .screen {
   position: absolute;
   z-index: 5;
-  width: min(92vw, 560px);
-  max-height: min(92vh, 760px);
+  width: min(94vw, 560px);
+  max-height: min(94vh, 800px);
   overflow-y: auto;
   opacity: 0;
   pointer-events: none;
   transform: translateY(18px) scale(0.98);
   transition: opacity 220ms ease, transform 220ms ease;
+  scrollbar-width: thin;
+  scrollbar-color: var(--accent) transparent;
+}
+
+.screen::-webkit-scrollbar {
+  width: 6px;
+}
+
+.screen::-webkit-scrollbar-thumb {
+  background: var(--accent);
+  border-radius: 10px;
 }
 
 .screen.active {
@@ -72,14 +84,15 @@ button {
 }
 
 .glass-panel {
-  padding: 30px;
+  padding: clamp(20px, 5vw, 40px);
   border: 1px solid rgba(255, 255, 255, 0.34);
-  border-radius: 8px;
+  border-radius: 12px;
   background:
     linear-gradient(145deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.04)),
     linear-gradient(180deg, var(--panel-strong), var(--panel));
   box-shadow: 0 30px 90px var(--shadow), inset 0 1px 0 rgba(255, 255, 255, 0.34);
   backdrop-filter: blur(20px) saturate(145%);
+  -webkit-backdrop-filter: blur(20px) saturate(145%);
   text-shadow: 0 2px 10px rgba(0, 0, 0, 0.22);
 }
 
@@ -328,9 +341,9 @@ p {
 .hud {
   position: absolute;
   z-index: 4;
-  top: 18px;
-  left: 18px;
-  right: 18px;
+  top: env(safe-area-inset-top, 18px);
+  left: env(safe-area-inset-left, 18px);
+  right: env(safe-area-inset-right, 18px);
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -348,6 +361,7 @@ p {
   pointer-events: auto;
   padding: 10px 14px;
   backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
 }
 
 .score-card {

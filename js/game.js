@@ -40,7 +40,9 @@ class SkyboundGame {
       { id: "score10", title: "Score 10", test: () => this.score >= 10 },
       { id: "score50", title: "Score 50", test: () => this.score >= 50 },
       { id: "score100", title: "Score 100", test: () => this.score >= 100 },
-      { id: "legendBird", title: "Legend Bird", test: () => this.storage.getStats().highScore >= 100 }
+      { id: "legendBird", title: "Legend Bird", test: () => this.storage.getStats().highScore >= 100 },
+      { id: "spaceExplorer", title: "Space Explorer", test: () => this.score >= 110 },
+      { id: "cyberRunner", title: "Cyber Runner", test: () => this.score >= 90 }
     ];
     // Difficulty presets keep balancing data isolated from gameplay logic.
     this.configs = {
@@ -72,24 +74,26 @@ class SkyboundGame {
         name: "Deep Ocean",
         weather: "clear",
         type: "ocean",
+        architecture: "ocean",
         isNight: false,
-        skyTop: "#1abc9c",
-        skyMid: "#3498db",
-        skyBottom: "#85c1e9",
+        skyTop: "#0f172a",
+        skyMid: "#1e3a8a",
+        skyBottom: "#3b82f6",
         sun: "rgba(255, 255, 255, 0.5)",
-        cloud: "rgba(255,255,255,0.9)",
-        mountain: "rgba(41,128,185,0.5)",
-        forestA: "#2471a3",
-        forestB: "#1f618d",
-        groundA: "#f5b041",
-        groundB: "#f39c12",
-        groundC: "#d68910",
-        accent: "#f1c40f"
+        cloud: "rgba(255,255,255,0.4)",
+        mountain: "rgba(30, 58, 138, 0.6)",
+        forestA: "#1d4ed8",
+        forestB: "#1e40af",
+        groundA: "#fbbf24",
+        groundB: "#f59e0b",
+        groundC: "#d97706",
+        accent: "#60a5fa"
       },
       {
         name: "Coral Sunrise",
         weather: "clear",
         type: "land",
+        architecture: "coral",
         isNight: false,
         skyTop: "#ff9f7a",
         skyMid: "#ffd1a6",
@@ -108,6 +112,7 @@ class SkyboundGame {
         name: "Monsoon Storm",
         weather: "rain",
         type: "land",
+        architecture: "ruins",
         isNight: true,
         skyTop: "#2f3640",
         skyMid: "#4b6584",
@@ -126,6 +131,7 @@ class SkyboundGame {
         name: "Volcanic Ash",
         weather: "volcano",
         type: "volcano",
+        architecture: "volcano",
         isNight: true,
         skyTop: "#7c2d12",
         skyMid: "#f97316",
@@ -144,6 +150,7 @@ class SkyboundGame {
         name: "Winter Wonderland",
         weather: "snow",
         type: "ice",
+        architecture: "ice",
         isNight: false,
         skyTop: "#83a4d4",
         skyMid: "#b6fbff",
@@ -162,6 +169,7 @@ class SkyboundGame {
         name: "Aurora Night",
         weather: "aurora",
         type: "land",
+        architecture: "aurora",
         isNight: true,
         skyTop: "#0f172a",
         skyMid: "#164e63",
@@ -324,7 +332,13 @@ class SkyboundGame {
 
   handleKey(event) {
     if (["Space", "KeyP", "KeyR", "Escape"].includes(event.code)) event.preventDefault();
-    if (event.code === "Space") this.handlePrimaryAction();
+    if (event.code === "Space") {
+      if (this.state === "gameOver") {
+        this.startGame();
+      } else {
+        this.handlePrimaryAction();
+      }
+    }
     if (event.code === "KeyP") this.togglePause();
     if (event.code === "KeyR") this.startGame();
     if (event.code === "Escape") this.goMenu();
@@ -682,6 +696,7 @@ class SkyboundGame {
 
     this.clouds.forEach((cloud) => this.drawCloud(ctx, cloud, biome));
     this.drawRollingHills(ctx, biome, "far");
+    this.drawUniqueArchitecture(ctx, biome);
     this.drawMountains(ctx, biome);
     this.drawRollingHills(ctx, biome, "near");
     this.drawForest(ctx, biome);
@@ -836,6 +851,215 @@ class SkyboundGame {
       ctx.globalAlpha = this.milestoneFlash * 0.28;
       ctx.fillStyle = biome.accent;
       ctx.fillRect(0, 0, this.width, this.height);
+      ctx.restore();
+    }
+  }
+
+  drawUniqueArchitecture(ctx, biome) {
+    const parallaxSpeed = this.state === "playing" ? this.config.speed : 55;
+    const offset = (this.sceneryOffset || 0) * 0.3;
+    const base = this.height - this.groundHeight;
+
+    if (biome.architecture === "pyramids") {
+      this.drawPyramids(ctx, offset, base, biome);
+    } else if (biome.architecture === "ocean") {
+      this.drawOceanFeatures(ctx, offset, base, biome);
+    } else if (biome.architecture === "pagodas") {
+      this.drawPagodas(ctx, offset, base, biome);
+    } else if (biome.architecture === "cyber") {
+      this.drawCyberTowers(ctx, offset, base, biome);
+    } else if (biome.architecture === "space") {
+      this.drawPlanets(ctx, offset, base, biome);
+    } else if (biome.architecture === "ruins") {
+      this.drawRuins(ctx, offset, base, biome);
+    }
+  }
+
+  drawPyramids(ctx, offset, base, biome) {
+    const spacing = 600;
+    const startX = -(offset % spacing);
+    for (let x = startX; x < this.width + spacing; x += spacing) {
+      ctx.save();
+      const h = 220;
+      const w = 340;
+      const py = base;
+      const px = x + 100;
+
+      // Shadow side
+      ctx.fillStyle = "rgba(180, 110, 40, 0.7)";
+      ctx.beginPath();
+      ctx.moveTo(px, py - h);
+      ctx.lineTo(px - w / 2, py);
+      ctx.lineTo(px, py);
+      ctx.closePath();
+      ctx.fill();
+
+      // Light side
+      ctx.fillStyle = "rgba(255, 210, 100, 0.8)";
+      ctx.beginPath();
+      ctx.moveTo(px, py - h);
+      ctx.lineTo(px + w / 2, py);
+      ctx.lineTo(px, py);
+      ctx.closePath();
+      ctx.fill();
+
+      // Highlights
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(px, py - h);
+      ctx.lineTo(px, py);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  drawOceanFeatures(ctx, offset, base, biome) {
+    const spacing = 400;
+    const startX = -(offset % spacing);
+    for (let x = startX; x < this.width + spacing; x += spacing) {
+      ctx.save();
+      // Bubbles
+      const bx = x + Math.sin(this.elapsed + x) * 50;
+      const by = base - 100 - (this.elapsed * 50 + x) % 300;
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(bx, by, 8, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Coral
+      const cx = x + 200;
+      const ch = 80;
+      ctx.fillStyle = "#e74c3c";
+      ctx.beginPath();
+      ctx.roundRect(cx, base - ch, 15, ch, 8);
+      ctx.roundRect(cx - 20, base - ch + 30, 40, 10, 5);
+      ctx.roundRect(cx + 10, base - ch + 10, 30, 10, 5);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  drawPagodas(ctx, offset, base, biome) {
+    const spacing = 700;
+    const startX = -(offset % spacing);
+    for (let x = startX; x < this.width + spacing; x += spacing) {
+      ctx.save();
+      const px = x + 150;
+      const py = base;
+      const levels = 3;
+      const lw = 120;
+      const lh = 40;
+
+      for (let i = 0; i < levels; i++) {
+        const curW = lw - i * 30;
+        const curY = py - i * (lh + 10);
+        ctx.fillStyle = "#c0392b";
+        ctx.beginPath();
+        ctx.moveTo(px - curW / 2, curY);
+        ctx.quadraticCurveTo(px, curY - 20, px + curW / 2, curY);
+        ctx.lineTo(px + curW / 2 - 10, curY - lh);
+        ctx.quadraticCurveTo(px, curY - lh - 10, px - curW / 2 + 10, curY - lh);
+        ctx.closePath();
+        ctx.fill();
+        
+        ctx.fillStyle = "#2c3e50";
+        ctx.fillRect(px - 10, curY - lh - 10, 20, 10);
+      }
+      ctx.restore();
+    }
+  }
+
+  drawCyberTowers(ctx, offset, base, biome) {
+    const spacing = 350;
+    const startX = -(offset % spacing);
+    for (let x = startX; x < this.width + spacing; x += spacing) {
+      ctx.save();
+      const h = 250 + Math.sin(x) * 100;
+      const w = 80;
+      const px = x + 50;
+      const py = base;
+
+      // Building body
+      ctx.fillStyle = "rgba(15, 23, 42, 0.9)";
+      ctx.fillRect(px, py - h, w, h);
+      
+      // Neon windows
+      ctx.fillStyle = "rgba(0, 255, 255, 0.6)";
+      for (let i = 0; i < h - 20; i += 30) {
+        ctx.fillRect(px + 10, py - h + i + 10, 15, 10);
+        ctx.fillRect(px + w - 25, py - h + i + 10, 15, 10);
+      }
+
+      // Roof antenna
+      ctx.strokeStyle = "rgba(255, 0, 255, 0.8)";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(px + w / 2, py - h);
+      ctx.lineTo(px + w / 2, py - h - 40);
+      ctx.stroke();
+      
+      const glow = ctx.createRadialGradient(px + w / 2, py - h - 40, 2, px + w / 2, py - h - 40, 10);
+      glow.addColorStop(0, "#ff00ff");
+      glow.addColorStop(1, "rgba(255, 0, 255, 0)");
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(px + w / 2, py - h - 40, 10, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  drawPlanets(ctx, offset, base, biome) {
+    const spacing = 1000;
+    const startX = -(offset % spacing);
+    for (let x = startX; x < this.width + spacing; x += spacing) {
+      ctx.save();
+      const px = x + 300;
+      const py = 150 + Math.sin(x) * 50;
+      const r = 60;
+
+      // Planet body
+      const grad = ctx.createRadialGradient(px - r/3, py - r/3, r/4, px, py, r);
+      grad.addColorStop(0, "#3498db");
+      grad.addColorStop(0.7, "#2980b9");
+      grad.addColorStop(1, "#1a5276");
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(px, py, r, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Rings
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.ellipse(px, py, r * 2, r * 0.4, Math.PI * 0.1, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  drawRuins(ctx, offset, base, biome) {
+    const spacing = 500;
+    const startX = -(offset % spacing);
+    for (let x = startX; x < this.width + spacing; x += spacing) {
+      ctx.save();
+      const px = x + 100;
+      const py = base;
+      
+      ctx.fillStyle = "rgba(100, 110, 120, 0.8)";
+      // Broken columns
+      ctx.fillRect(px, py - 120, 30, 120);
+      ctx.fillRect(px + 100, py - 80, 30, 80);
+      
+      // Top beam (broken)
+      ctx.beginPath();
+      ctx.moveTo(px - 10, py - 120);
+      ctx.lineTo(px + 40, py - 120);
+      ctx.lineTo(px + 15, py - 100);
+      ctx.closePath();
+      ctx.fill();
       ctx.restore();
     }
   }
