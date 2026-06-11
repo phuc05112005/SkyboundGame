@@ -1,5 +1,10 @@
 class Particle {
-  constructor(x, y, options = {}) {
+  constructor() {
+    this.reset(0, 0);
+    this.active = false;
+  }
+
+  reset(x, y, options = {}) {
     this.x = x;
     this.y = y;
     this.vx = options.vx ?? (Math.random() - 0.5) * 120;
@@ -11,16 +16,23 @@ class Particle {
     this.gravity = options.gravity ?? 0;
     this.glow = options.glow ?? 0;
     this.shape = options.shape ?? "circle";
+    this.active = true;
   }
 
   update(dt) {
+    if (!this.active) return;
     this.life -= dt;
+    if (this.life <= 0) {
+      this.active = false;
+      return;
+    }
     this.vy += this.gravity * dt;
     this.x += this.vx * dt;
     this.y += this.vy * dt;
   }
 
   draw(ctx) {
+    if (!this.active) return;
     const alpha = Math.max(0, this.life / this.maxLife);
     ctx.save();
     ctx.globalAlpha = alpha;
@@ -44,25 +56,34 @@ class Particle {
   }
 
   get dead() {
-    return this.life <= 0;
+    return !this.active;
   }
 }
 
 class ParticleSystem {
   constructor() {
     this.particles = [];
+    this.pool = [];
     this.floatTimer = 0;
   }
 
-  add(particle) {
-    this.particles.push(particle);
+  add(x, y, options = {}) {
+    let p;
+    if (this.pool.length > 0) {
+      p = this.pool.pop();
+      p.reset(x, y, options);
+    } else {
+      p = new Particle();
+      p.reset(x, y, options);
+      this.particles.push(p);
+    }
   }
 
   burst(x, y, count, options = {}) {
     for (let i = 0; i < count; i += 1) {
       const angle = Math.random() * Math.PI * 2;
       const speed = (options.speed ?? 160) * (0.35 + Math.random() * 0.9);
-      this.add(new Particle(x, y, {
+      this.add(x, y, {
         vx: Math.cos(angle) * speed,
         vy: Math.sin(angle) * speed,
         size: (options.size ?? 5) * (0.6 + Math.random() * 0.8),
@@ -71,12 +92,12 @@ class ParticleSystem {
         gravity: options.gravity ?? 90,
         glow: options.glow ?? 12,
         shape: options.shape ?? "circle"
-      }));
+      });
     }
   }
 
   trail(x, y) {
-    this.add(new Particle(x, y, {
+    this.add(x, y, {
       vx: -90 - Math.random() * 70,
       vy: (Math.random() - 0.5) * 45,
       size: 2 + Math.random() * 3,
@@ -84,7 +105,7 @@ class ParticleSystem {
       color: "rgba(255,255,255,0.88)",
       gravity: -8,
       glow: 8
-    }));
+    });
   }
 
   feathers(x, y) {
@@ -130,31 +151,28 @@ class ParticleSystem {
   }
 
   update(dt, width, height, enabled) {
-    // Ambient dust is spawned continuously when effects are enabled.
-    if (enabled) {
-      this.floatTimer += dt;
-      if (this.floatTimer > 0.08) {
-        this.floatTimer = 0;
-        this.add(new Particle(Math.random() * width, height * (0.1 + Math.random() * 0.75), {
-          vx: -8 - Math.random() * 20,
-          vy: -4 - Math.random() * 10,
-          size: 1 + Math.random() * 2,
-          life: 3 + Math.random() * 2,
-          color: "rgba(255,255,255,0.38)",
-          gravity: 0,
-          glow: 6
-        }));
+    this.particles.forEach((particle) => {
+      if (particle.active) {
+        particle.update(dt);
+        if (!particle.active) {
+          this.pool.push(particle);
+        }
       }
-    }
-    this.particles.forEach((particle) => particle.update(dt));
-    this.particles = this.particles.filter((particle) => !particle.dead);
+    });
   }
 
   draw(ctx) {
-    this.particles.forEach((particle) => particle.draw(ctx));
+    this.particles.forEach((particle) => {
+      if (particle.active) particle.draw(ctx);
+    });
   }
 
   clear() {
-    this.particles = [];
+    this.particles.forEach(p => {
+      if (p.active) {
+        p.active = false;
+        this.pool.push(p);
+      }
+    });
   }
 }

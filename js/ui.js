@@ -258,6 +258,19 @@ class GameUI {
     this.scoreText.textContent = score;
   }
 
+  updateCombo(combo, multiplier) {
+    if (!this.comboCard) return;
+    this.comboText.textContent = combo;
+    this.multiplierText.textContent = `x${multiplier}`;
+    
+    // Thêm hiệu ứng rung nhẹ khi combo tăng
+    this.comboCard.classList.remove("bump");
+    void this.comboCard.offsetWidth; // Force reflow
+    if (combo > 0) this.comboCard.classList.add("bump");
+    
+    this.comboCard.style.display = combo > 0 ? "flex" : "none";
+  }
+
   updatePower(text) {
     this.powerStatus.textContent = text;
   }

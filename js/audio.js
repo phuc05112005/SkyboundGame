@@ -159,8 +159,41 @@ class AudioEngine {
     }
   }
 
+  startRain() {
+    if (!this.context || this.rainAmbient || !this.sfxEnabled || this.muted) return;
+    this.resume();
+    const duration = 2; // Loop buffer
+    const buffer = this.context.createBuffer(1, this.context.sampleRate * duration, this.context.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * 0.4;
+    
+    this.rainAmbient = this.context.createBufferSource();
+    this.rainAmbient.buffer = buffer;
+    this.rainAmbient.loop = true;
+    const gain = this.context.createGain();
+    gain.gain.value = 0.08;
+    this.rainAmbient.connect(gain);
+    gain.connect(this.sfxGain);
+    this.rainAmbient.start();
+  }
+
+  stopRain() {
+    if (this.rainAmbient) {
+      this.rainAmbient.stop();
+      this.rainAmbient = null;
+    }
+  }
+
   setMood(biome = {}) {
     const moodKey = `${biome.name || ""} ${biome.type || ""} ${biome.weather || ""}`.toLowerCase();
+    
+    // Ambient sound control
+    if (moodKey.includes("storm") || moodKey.includes("rain")) {
+      this.startRain();
+    } else {
+      this.stopRain();
+    }
+
     if (moodKey.includes("ocean")) this.mood = "ocean";
     else if (moodKey.includes("coral") || moodKey.includes("sunrise")) this.mood = "coral";
     else if (moodKey.includes("storm")) this.mood = "storm";
@@ -233,5 +266,6 @@ class AudioEngine {
     if (this.musicTimer) window.clearInterval(this.musicTimer);
     this.musicTimer = null;
     this.musicStep = 0;
+    this.stopRain();
   }
 }

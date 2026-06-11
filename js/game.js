@@ -24,7 +24,6 @@ class SkyboundGame {
     this.hills = [];
     this.mountainLayers = [];
     this.trees = [];
-    this.sparkles = [];
     this.groundOffset = 0;
     this.nextPipeSequence = 1;
     this.biomeIndex = 0;
@@ -281,17 +280,18 @@ class SkyboundGame {
       h: 42 + Math.random() * 80,
       shade: Math.random()
     }));
-    this.sparkles = Array.from({ length: 42 }, () => ({
-      x: Math.random() * this.width,
-      y: Math.random() * this.height * 0.62,
-      r: 0.7 + Math.random() * 1.8,
-      phase: Math.random() * Math.PI * 2
-    }));
     this.weatherParticles = Array.from({ length: 150 }, () => ({
       x: Math.random() * this.width,
       y: Math.random() * this.height,
       z: Math.random(),
       phase: Math.random() * Math.PI * 2
+    }));
+    this.foregroundItems = Array.from({ length: 6 }, () => ({
+      x: Math.random() * this.width,
+      y: Math.random() * this.height,
+      size: 40 + Math.random() * 80,
+      speed: 400 + Math.random() * 200,
+      opacity: 0.1 + Math.random() * 0.15
     }));
   }
 
@@ -352,6 +352,7 @@ class SkyboundGame {
     if (this.state !== "playing") return;
     this.player.flap();
     this.audio.jump();
+    this.shake = Math.max(this.shake, 3.5);
     if (this.effectsEnabled) {
       this.particles.trail(this.player.x - 22, this.player.y + 8);
       this.particles.feathers(this.player.x - 10, this.player.y + 8);
@@ -368,6 +369,8 @@ class SkyboundGame {
     this.elapsed = 0;
     this.spawnTimer = 0;
     this.powerTimer = 2.4;
+    this.combo = 0;
+    this.multiplier = 1;
     this.nextPipeSequence = 1;
     this.biomeIndex = 0;
     this.previousBiomeIndex = 0;
@@ -427,9 +430,12 @@ class SkyboundGame {
 
   update(rawDt, dt) {
     this.elapsed += rawDt;
-    this.shake = Math.max(0, this.shake - rawDt * 24);
+    this.shake = Math.max(0, this.shake - rawDt * 30);
+    this.shakeX = (Math.random() - 0.5) * this.shake;
+    this.shakeY = (Math.random() - 0.5) * this.shake;
     this.hitFreeze = Math.max(0, this.hitFreeze - rawDt);
     this.slowMotion = Math.max(0, this.slowMotion - rawDt);
+    this.multiplier = 1 + Math.floor(this.combo / 10);
     this.milestoneFlash = Math.max(0, this.milestoneFlash - rawDt * 0.72);
     this.biomeBlend = Math.max(0, this.biomeBlend - rawDt * 0.45);
     if (this.milestoneBanner) {
@@ -437,6 +443,16 @@ class SkyboundGame {
       if (this.milestoneBanner.life <= 0) this.milestoneBanner = null;
     }
     this.updateScenery(rawDt);
+    
+    // Update foreground parallax
+    this.foregroundItems.forEach((item) => {
+      item.x -= item.speed * rawDt;
+      if (item.x < -item.size) {
+        item.x = this.width + item.size;
+        item.y = Math.random() * this.height;
+      }
+    });
+
     this.particles.update(rawDt, this.width, this.height, this.effectsEnabled);
     this.scoreTexts.forEach((text) => {
       text.life -= rawDt;
@@ -552,10 +568,29 @@ class SkyboundGame {
     this.pipes.forEach((pipe) => {
       if (!pipe.scored && pipe.x + pipe.width < this.player.x) {
         pipe.scored = true;
-        const amount = this.player.doubleScore > 0 ? 2 : 1;
+        
+        // Near Miss Detection
+        const distTop = Math.abs(this.player.y - pipe.gapY);
+        const distBottom = Math.abs(this.player.y - (pipe.gapY + pipe.gap));
+        const isNearMiss = Math.min(distTop, distBottom) < 22;
+        
+        if (isNearMiss) {
+          this.combo += 5;
+          this.shake = Math.max(this.shake, 12);
+          this.ui.toast("NEAR MISS!", "Combo Bonus!", true);
+          this.audio.powerUp("double"); // Dùng tạm tiếng powerup
+          if (this.effectsEnabled) {
+             this.particles.burst(this.player.x, this.player.y, 15, { color: "#fff", speed: 200, glow: 20 });
+          }
+        } else {
+          this.combo += 1;
+        }
+        
+        const amount = 1; // Chỉ nhận đúng 1 điểm mỗi cột như yêu cầu
         this.score += amount;
         this.streak += amount;
         this.ui.updateScore(this.score);
+        this.ui.updateCombo(this.combo, this.multiplier);
         this.audio.point();
         this.scoreTexts.push({ x: this.player.x + 34, y: this.player.y - 26, text: `+${amount}`, life: 0.8, alpha: 1 });
         if (this.effectsEnabled) this.particles.score(this.player.x + 38, this.player.y - 26);
@@ -652,6 +687,9 @@ class SkyboundGame {
     this.audio.stopMusic();
     if (this.effectsEnabled) this.particles.explosion(this.player.x, this.player.y);
     const stats = this.storage.recordGame(this.score, this.streak);
+    this.combo = 0;
+    this.multiplier = 1;
+    this.ui.updateCombo(0, 1);
     this.checkAchievements();
     window.setTimeout(() => this.ui.showGameOver(this.score, stats.highScore), 460);
   }
@@ -670,7 +708,7 @@ class SkyboundGame {
     this.drawBackground(ctx);
     ctx.save();
     if (this.shake > 0 && this.effectsEnabled) {
-      ctx.translate((Math.random() - 0.5) * this.shake, (Math.random() - 0.5) * this.shake);
+      ctx.translate(this.shakeX, this.shakeY);
     }
     this.pipes.forEach((pipe) => pipe.draw(ctx, this.height, this.effectsEnabled));
     this.powerUps.forEach((powerUp) => powerUp.draw(ctx));
@@ -679,7 +717,31 @@ class SkyboundGame {
     this.drawScoreTexts(ctx);
     this.drawGround(ctx);
     ctx.restore();
+    this.drawForeground(ctx);
     this.drawOverlay(ctx);
+  }
+
+  drawForeground(ctx) {
+    if (!this.effectsEnabled) return;
+    ctx.save();
+    this.foregroundItems.forEach((item) => {
+      const grad = ctx.createRadialGradient(
+        Math.round(item.x), 
+        Math.round(item.y), 
+        0, 
+        Math.round(item.x), 
+        Math.round(item.y), 
+        Math.round(item.size)
+      );
+      grad.addColorStop(0, `rgba(255, 255, 255, ${item.opacity})`);
+      grad.addColorStop(0.5, `rgba(255, 255, 255, ${item.opacity * 0.4})`);
+      grad.addColorStop(1, "rgba(255, 255, 255, 0)");
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(Math.round(item.x), Math.round(item.y), Math.round(item.size), 0, Math.PI * 2);
+      ctx.fill();
+    });
+    ctx.restore();
   }
 
   drawBackground(ctx) {
@@ -919,15 +981,6 @@ class SkyboundGame {
     const startX = -(offset % spacing);
     for (let x = startX; x < this.width + spacing; x += spacing) {
       ctx.save();
-      // Bubbles
-      const bx = x + Math.sin(this.elapsed + x) * 50;
-      const by = base - 100 - (this.elapsed * 50 + x) % 300;
-      ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.arc(bx, by, 8, 0, Math.PI * 2);
-      ctx.stroke();
-
       // Coral
       const cx = x + 200;
       const ch = 80;
@@ -1066,7 +1119,7 @@ class SkyboundGame {
 
   drawCloud(ctx, cloud, biome) {
     ctx.save();
-    ctx.translate(cloud.x, cloud.y);
+    ctx.translate(Math.round(cloud.x), Math.round(cloud.y));
     ctx.scale(cloud.scale, cloud.scale);
     ctx.fillStyle = biome.cloud;
     ctx.beginPath();
@@ -1091,6 +1144,7 @@ class SkyboundGame {
       let x = (hill.x - offset) % wrap;
       if (x < 0) x += wrap;
       x -= hill.w;
+      x = Math.round(x);
       const height = hill.h * (isFar ? 0.82 : 1.08);
       const fill = hill.shade
         ? this.hexToRgba(biome.forestA, alpha)
@@ -1170,34 +1224,34 @@ class SkyboundGame {
     ctx.fillStyle = gradient;
 
     ctx.beginPath();
-    ctx.moveTo(-layer.spacing, layerBase + 100);
+    ctx.moveTo(-layer.spacing, Math.round(layerBase + 100));
     layer.points.forEach((point, index) => {
-      const x = point.x - layer.offset;
-      const peakY = layerBase - point.peak;
-      const ridgeY = layerBase - point.ridge;
+      const x = Math.round(point.x - layer.offset);
+      const peakY = Math.round(layerBase - point.peak);
+      const ridgeY = Math.round(layerBase - point.ridge);
       if (index === 0) {
         ctx.lineTo(x, ridgeY);
         return;
       }
-      const previousX = layer.points[index - 1].x - layer.offset;
-      const midX = (previousX + x) * 0.5;
+      const previousX = Math.round(layer.points[index - 1].x - layer.offset);
+      const midX = Math.round((previousX + x) * 0.5);
       ctx.quadraticCurveTo(midX, peakY, x, ridgeY);
     });
-    ctx.lineTo(this.width + layer.spacing, layerBase + 100);
+    ctx.lineTo(this.width + layer.spacing, Math.round(layerBase + 100));
     ctx.closePath();
     ctx.fill();
 
     ctx.beginPath();
     layer.points.forEach((point, index) => {
-      const x = point.x - layer.offset;
-      const peakY = layerBase - point.peak;
-      const ridgeY = layerBase - point.ridge;
+      const x = Math.round(point.x - layer.offset);
+      const peakY = Math.round(layerBase - point.peak);
+      const ridgeY = Math.round(layerBase - point.ridge);
       if (index === 0) {
         ctx.moveTo(x, ridgeY);
         return;
       }
-      const previousX = layer.points[index - 1].x - layer.offset;
-      const midX = (previousX + x) * 0.5;
+      const previousX = Math.round(layer.points[index - 1].x - layer.offset);
+      const midX = Math.round((previousX + x) * 0.5);
       ctx.quadraticCurveTo(midX, peakY, x, ridgeY);
     });
     ctx.lineWidth = 3;
@@ -1297,42 +1351,43 @@ class SkyboundGame {
   }
 
   drawForest(ctx, biome) {
-    const groundTop = this.height - this.groundHeight;
+    const groundTop = Math.round(this.height - this.groundHeight);
     this.trees.forEach((tree) => {
+      const tx = Math.round(tree.x);
       if (biome.type === "ocean") {
         ctx.fillStyle = tree.shade > 0.5 ? biome.forestA : biome.forestB;
         ctx.beginPath();
-        ctx.moveTo(tree.x, groundTop);
-        ctx.quadraticCurveTo(tree.x + 10, groundTop - tree.h * 0.6, tree.x + 15, groundTop - tree.h);
-        ctx.quadraticCurveTo(tree.x + 20, groundTop - tree.h * 0.6, tree.x + 30, groundTop);
+        ctx.moveTo(tx, groundTop);
+        ctx.quadraticCurveTo(tx + 10, groundTop - tree.h * 0.6, tx + 15, groundTop - tree.h);
+        ctx.quadraticCurveTo(tx + 20, groundTop - tree.h * 0.6, tx + 30, groundTop);
         ctx.closePath();
         ctx.fill();
         return;
       }
       const isIce = biome.type === "ice";
       const green = isIce ? (tree.shade > 0.5 ? "#ffffff" : "#ecf0f1") : (tree.shade > 0.5 ? biome.forestA : biome.forestB);
-      const trunkX = tree.x + 19;
+      const trunkX = tx + 19;
       ctx.fillStyle = isIce ? "#95a5a6" : "rgba(85, 58, 36, 0.72)";
       ctx.fillRect(trunkX, groundTop - 20, 6, 20);
       ctx.fillStyle = green;
       ctx.beginPath();
-      ctx.moveTo(tree.x, groundTop);
-      ctx.lineTo(tree.x + 22, groundTop - tree.h);
-      ctx.lineTo(tree.x + 44, groundTop);
+      ctx.moveTo(tx, groundTop);
+      ctx.lineTo(tx + 22, groundTop - tree.h);
+      ctx.lineTo(tx + 44, groundTop);
       ctx.closePath();
       ctx.fill();
       ctx.fillStyle = isIce ? "rgba(189, 195, 199, 0.3)" : this.hexToRgba(biome.groundA, 0.18);
       ctx.beginPath();
-      ctx.moveTo(tree.x + 8, groundTop - tree.h * 0.38);
-      ctx.lineTo(tree.x + 22, groundTop - tree.h * 0.68);
-      ctx.lineTo(tree.x + 36, groundTop - tree.h * 0.38);
+      ctx.moveTo(tx + 8, groundTop - tree.h * 0.38);
+      ctx.lineTo(tx + 22, groundTop - tree.h * 0.68);
+      ctx.lineTo(tx + 36, groundTop - tree.h * 0.38);
       ctx.closePath();
       ctx.fill();
     });
   }
 
   drawGround(ctx) {
-    const top = this.height - this.groundHeight;
+    const top = Math.round(this.height - this.groundHeight);
     const biome = this.getActiveBiome();
     const isOcean = biome.type === "ocean";
     const isIce = biome.type === "ice";
@@ -1348,7 +1403,7 @@ class SkyboundGame {
     const offset1 = this.groundOffset % 72;
     for (let x = -72 - offset1; x < this.width + 72; x += 72) {
       ctx.beginPath();
-      ctx.ellipse(x + 36, top + 16, 30, 6, 0, 0, Math.PI * 2);
+      ctx.ellipse(Math.round(x + 36), top + 16, 30, 6, 0, 0, Math.PI * 2);
       ctx.fill();
     }
 
@@ -1356,17 +1411,18 @@ class SkyboundGame {
     ctx.lineWidth = 2;
     const offset2 = (this.groundOffset * 0.65) % 90;
     for (let x = -90 - offset2; x < this.width + 90; x += 90) {
+      const rx = Math.round(x);
       ctx.beginPath();
-      ctx.moveTo(x, top + 34);
-      ctx.quadraticCurveTo(x + 24, top + 23, x + 54, top + 36);
-      ctx.quadraticCurveTo(x + 70, top + 44, x + 90, top + 35);
+      ctx.moveTo(rx, top + 34);
+      ctx.quadraticCurveTo(rx + 24, top + 23, rx + 54, top + 36);
+      ctx.quadraticCurveTo(rx + 70, top + 44, rx + 90, top + 35);
       ctx.stroke();
     }
 
     ctx.fillStyle = "rgba(8, 42, 54, 0.16)";
     for (let x = -54 - this.groundOffset * 1.15; x < this.width + 54; x += 54) {
       ctx.beginPath();
-      ctx.ellipse(x + 18, top + this.groundHeight - 18, 18, 4, 0, 0, Math.PI * 2);
+      ctx.ellipse(Math.round(x + 18), top + this.groundHeight - 18, 18, 4, 0, 0, Math.PI * 2);
       ctx.fill();
     }
   }
@@ -1430,6 +1486,13 @@ class SkyboundGame {
     gradient.addColorStop(0.5, "rgba(255,255,255,0)");
     gradient.addColorStop(1, "rgba(10,25,44,0.18)");
     ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, this.width, this.height);
+
+    // Vignette effect
+    const vignette = ctx.createRadialGradient(this.width / 2, this.height / 2, this.width * 0.4, this.width / 2, this.height / 2, this.width * 0.8);
+    vignette.addColorStop(0, "rgba(0, 0, 0, 0)");
+    vignette.addColorStop(1, "rgba(0, 0, 0, 0.35)");
+    ctx.fillStyle = vignette;
     ctx.fillRect(0, 0, this.width, this.height);
   }
 }
