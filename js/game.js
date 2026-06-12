@@ -182,6 +182,62 @@ class SkyboundGame {
         groundB: "#0f766e",
         groundC: "#172554",
         accent: "#a78bfa"
+      }, {
+        name: "Golden Desert",
+        weather: "clear",
+        type: "desert",
+        architecture: "pyramids",
+        isNight: false,
+        skyTop: "#ff9a44",
+        skyMid: "#fc6076",
+        skyBottom: "#ffb88c",
+        sun: "rgba(255, 255, 255, 0.4)",
+        cloud: "rgba(255, 200, 150, 0.5)",
+        mountain: "rgba(180, 100, 50, 0.4)",
+        forestA: "#d4a373",
+        forestB: "#cc905c",
+        groundA: "#e9c46a",
+        groundB: "#f4a261",
+        groundC: "#e76f51",
+        accent: "#ffcc00"
+      },
+      {
+        name: "Meteor Shower",
+        weather: "meteor",
+        type: "space",
+        architecture: "none",
+        isNight: true,
+        skyTop: "#0b001a",
+        skyMid: "#1a0b2e",
+        skyBottom: "#2d1b4e",
+        sun: "rgba(255, 255, 255, 0)",
+        cloud: "rgba(150, 100, 200, 0.2)",
+        mountain: "rgba(60, 40, 90, 0.4)",
+        forestA: "#1a1a3a",
+        forestB: "#0d0d1e",
+        groundA: "#3b285e",
+        groundB: "#271940",
+        groundC: "#140c24",
+        accent: "#ff4400"
+      },
+      {
+        name: "Cyber City",
+        weather: "clear",
+        type: "city",
+        architecture: "cyber",
+        isNight: true,
+        skyTop: "#020024",
+        skyMid: "#090979",
+        skyBottom: "#340068",
+        sun: "rgba(0, 255, 255, 0.1)",
+        cloud: "rgba(255, 0, 255, 0.2)",
+        mountain: "rgba(0, 100, 255, 0.2)",
+        forestA: "#0f172a",
+        forestB: "#020617",
+        groundA: "#1e1e3f",
+        groundB: "#0f0f2d",
+        groundC: "#00001a",
+        accent: "#00ffff"
       }
     ];
     this.bindEvents();
@@ -443,7 +499,7 @@ class SkyboundGame {
       if (this.milestoneBanner.life <= 0) this.milestoneBanner = null;
     }
     this.updateScenery(rawDt);
-    
+
     // Update foreground parallax
     this.foregroundItems.forEach((item) => {
       item.x -= item.speed * rawDt;
@@ -546,6 +602,9 @@ class SkyboundGame {
       } else if (biome.weather === "volcano") {
         p.y -= (40 + p.z * 60) * dt;
         p.x += Math.sin(this.elapsed * 2 + p.phase) * 20 * dt;
+      } else if (biome.weather === "meteor") {
+        p.y += (150 + p.z * 300) * dt;
+        p.x -= (250 + p.z * 400) * dt;
       } else if (biome.weather === "aurora" || biome.weather === "clear") {
         p.x -= (5 + p.z * 10) * dt;
       }
@@ -568,31 +627,33 @@ class SkyboundGame {
     this.pipes.forEach((pipe) => {
       if (!pipe.scored && pipe.x + pipe.width < this.player.x) {
         pipe.scored = true;
-        
+
         // Near Miss Detection
         const distTop = Math.abs(this.player.y - pipe.gapY);
         const distBottom = Math.abs(this.player.y - (pipe.gapY + pipe.gap));
         const isNearMiss = Math.min(distTop, distBottom) < 22;
-        
+
         if (isNearMiss) {
           this.combo += 5;
           this.shake = Math.max(this.shake, 12);
           this.ui.toast("NEAR MISS!", "Combo Bonus!", true);
           this.audio.powerUp("double"); // Dùng tạm tiếng powerup
           if (this.effectsEnabled) {
-             this.particles.burst(this.player.x, this.player.y, 15, { color: "#fff", speed: 200, glow: 20 });
+            this.particles.burst(this.player.x, this.player.y, 15, { color: "#fff", speed: 200, glow: 20 });
           }
         } else {
           this.combo += 1;
         }
-        
-        const amount = 1; // Chỉ nhận đúng 1 điểm mỗi cột như yêu cầu
+
+        const amount = this.player.doubleScore > 0 ? 2 : 1;
         this.score += amount;
         this.streak += amount;
         this.ui.updateScore(this.score);
         this.ui.updateCombo(this.combo, this.multiplier);
         this.audio.point();
-        this.scoreTexts.push({ x: this.player.x + 34, y: this.player.y - 26, text: `+${amount}`, life: 0.8, alpha: 1 });
+
+        const floatText = this.player.doubleScore > 0 ? `+2 (x2)` : `+1`;
+        this.scoreTexts.push({ x: this.player.x + 34, y: this.player.y - 26, text: floatText, life: 0.8, alpha: 1 });
         if (this.effectsEnabled) this.particles.score(this.player.x + 38, this.player.y - 26);
         if (pipe.milestone) this.triggerMilestone(pipe.sequence);
       }
@@ -726,11 +787,11 @@ class SkyboundGame {
     ctx.save();
     this.foregroundItems.forEach((item) => {
       const grad = ctx.createRadialGradient(
-        Math.round(item.x), 
-        Math.round(item.y), 
-        0, 
-        Math.round(item.x), 
-        Math.round(item.y), 
+        Math.round(item.x),
+        Math.round(item.y),
+        0,
+        Math.round(item.x),
+        Math.round(item.y),
         Math.round(item.size)
       );
       grad.addColorStop(0, `rgba(255, 255, 255, ${item.opacity})`);
@@ -906,6 +967,28 @@ class SkyboundGame {
       volcanoGlow.addColorStop(1, "rgba(255, 50, 0, 0.4)");
       ctx.fillStyle = volcanoGlow;
       ctx.fillRect(0, this.height * 0.5, this.width, this.height * 0.5);
+    } else if (biome.weather === "meteor") {
+      this.weatherParticles.forEach(p => {
+        if (p.z > 0.85) {
+          const length = 40 + p.z * 50;
+          const grad = ctx.createLinearGradient(p.x, p.y, p.x + length, p.y - length * 0.6);
+          grad.addColorStop(0, "rgba(255, 255, 255, 1)");
+          grad.addColorStop(0.3, "rgba(255, 200, 0, 0.8)");
+          grad.addColorStop(1, "rgba(255, 50, 0, 0)");
+          ctx.strokeStyle = grad;
+          ctx.lineWidth = 1 + p.z * 2;
+          ctx.beginPath();
+          ctx.moveTo(p.x, p.y);
+          ctx.lineTo(p.x + length, p.y - length * 0.6);
+          ctx.stroke();
+        } else {
+          const starAlpha = 0.2 + p.z * 0.8 * (0.5 + 0.5 * Math.sin(this.elapsed * 3 + p.phase));
+          ctx.fillStyle = `rgba(255, 255, 255, ${starAlpha})`;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, 0.5 + p.z * 1.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      });
     }
 
     if (this.milestoneFlash > 0 && this.effectsEnabled) {
@@ -938,14 +1021,16 @@ class SkyboundGame {
   }
 
   drawPyramids(ctx, offset, base, biome) {
-    const spacing = 600;
+    const spacing = 500;
     const startX = -(offset % spacing);
     for (let x = startX; x < this.width + spacing; x += spacing) {
       ctx.save();
-      const h = 220;
-      const w = 340;
+      const index = Math.round((offset + x) / spacing);
+      const variation = Math.abs(Math.sin(index * 12.9898));
+      const h = 150 + variation * 150;
+      const w = 250 + variation * 150;
       const py = base;
-      const px = x + 100;
+      const px = x + 150;
 
       // Shadow side
       ctx.fillStyle = "rgba(180, 110, 40, 0.7)";
@@ -1016,7 +1101,7 @@ class SkyboundGame {
         ctx.quadraticCurveTo(px, curY - lh - 10, px - curW / 2 + 10, curY - lh);
         ctx.closePath();
         ctx.fill();
-        
+
         ctx.fillStyle = "#2c3e50";
         ctx.fillRect(px - 10, curY - lh - 10, 20, 10);
       }
@@ -1029,66 +1114,103 @@ class SkyboundGame {
     const startX = -(offset % spacing);
     for (let x = startX; x < this.width + spacing; x += spacing) {
       ctx.save();
-      const h = 250 + Math.sin(x) * 100;
-      const w = 80;
+      const index = Math.round((offset + x) / spacing);
+      const rand1 = Math.abs(Math.sin(index * 12.9898));
+      const rand2 = Math.abs(Math.sin(index * 78.233));
+
+      const h = 200 + rand1 * 180;
+      const w = 70 + rand2 * 60;
       const px = x + 50;
       const py = base;
 
+      const buildingType = Math.floor(rand1 * 3);
+
       // Building body
-      ctx.fillStyle = "rgba(15, 23, 42, 0.9)";
+      ctx.fillStyle = "rgba(15, 23, 42, 0.95)";
       ctx.fillRect(px, py - h, w, h);
-      
+
       // Neon windows
-      ctx.fillStyle = "rgba(0, 255, 255, 0.6)";
-      for (let i = 0; i < h - 20; i += 30) {
-        ctx.fillRect(px + 10, py - h + i + 10, 15, 10);
-        ctx.fillRect(px + w - 25, py - h + i + 10, 15, 10);
+      const hue = Math.floor(rand2 * 360);
+      ctx.fillStyle = `hsla(${hue}, 100%, 50%, 0.6)`;
+
+      if (buildingType === 0) {
+        for (let i = 0; i < h - 20; i += 30) {
+          ctx.fillRect(px + 10, py - h + i + 10, w / 2 - 15, 10);
+          ctx.fillRect(px + w / 2 + 5, py - h + i + 10, w / 2 - 15, 10);
+        }
+      } else if (buildingType === 1) {
+        for (let i = 0; i < h - 30; i += 40) {
+          ctx.fillRect(px + 15, py - h + i + 15, w - 30, 20);
+        }
+      } else {
+        for (let i = 0; i < h - 20; i += 20) {
+          ctx.fillRect(px + 5, py - h + i + 5, 10, 10);
+          ctx.fillRect(px + w - 15, py - h + i + 5, 10, 10);
+        }
       }
 
       // Roof antenna
-      ctx.strokeStyle = "rgba(255, 0, 255, 0.8)";
+      ctx.strokeStyle = `hsla(${hue}, 100%, 50%, 0.8)`;
       ctx.lineWidth = 3;
       ctx.beginPath();
       ctx.moveTo(px + w / 2, py - h);
-      ctx.lineTo(px + w / 2, py - h - 40);
+      ctx.lineTo(px + w / 2, py - h - 40 - rand1 * 30);
       ctx.stroke();
-      
-      const glow = ctx.createRadialGradient(px + w / 2, py - h - 40, 2, px + w / 2, py - h - 40, 10);
-      glow.addColorStop(0, "#ff00ff");
-      glow.addColorStop(1, "rgba(255, 0, 255, 0)");
+
+      const glowY = py - h - 40 - rand1 * 30;
+      const glow = ctx.createRadialGradient(px + w / 2, glowY, 2, px + w / 2, glowY, 12);
+      glow.addColorStop(0, `hsla(${hue}, 100%, 50%, 1)`);
+      glow.addColorStop(1, `hsla(${hue}, 100%, 50%, 0)`);
       ctx.fillStyle = glow;
       ctx.beginPath();
-      ctx.arc(px + w / 2, py - h - 40, 10, 0, Math.PI * 2);
+      ctx.arc(px + w / 2, glowY, 12, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
     }
   }
 
   drawPlanets(ctx, offset, base, biome) {
-    const spacing = 1000;
+    const spacing = 800;
     const startX = -(offset % spacing);
     for (let x = startX; x < this.width + spacing; x += spacing) {
       ctx.save();
-      const px = x + 300;
-      const py = 150 + Math.sin(x) * 50;
-      const r = 60;
+      const index = Math.round((offset + x) / spacing);
+      const rand1 = Math.abs(Math.sin(index * 12.9898));
+      const rand2 = Math.abs(Math.sin(index * 78.233));
+      const rand3 = Math.abs(Math.sin(index * 45.123));
+
+      const px = x + 200 + rand1 * 200;
+      const py = 100 + rand2 * 150;
+      const r = 40 + rand3 * 60;
+
+      const type = Math.floor(rand1 * 3);
+      const hue = Math.floor(rand2 * 360);
 
       // Planet body
-      const grad = ctx.createRadialGradient(px - r/3, py - r/3, r/4, px, py, r);
-      grad.addColorStop(0, "#3498db");
-      grad.addColorStop(0.7, "#2980b9");
-      grad.addColorStop(1, "#1a5276");
+      const grad = ctx.createRadialGradient(px - r / 3, py - r / 3, r / 4, px, py, r);
+      grad.addColorStop(0, `hsl(${hue}, 80%, 70%)`);
+      grad.addColorStop(0.7, `hsl(${hue}, 70%, 40%)`);
+      grad.addColorStop(1, `hsl(${hue}, 80%, 15%)`);
       ctx.fillStyle = grad;
       ctx.beginPath();
       ctx.arc(px, py, r, 0, Math.PI * 2);
       ctx.fill();
 
       // Rings
-      ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
-      ctx.lineWidth = 4;
-      ctx.beginPath();
-      ctx.ellipse(px, py, r * 2, r * 0.4, Math.PI * 0.1, 0, Math.PI * 2);
-      ctx.stroke();
+      if (type === 0) {
+        ctx.strokeStyle = `hsla(${(hue + 180) % 360}, 50%, 80%, 0.4)`;
+        ctx.lineWidth = 4 + rand1 * 4;
+        ctx.beginPath();
+        ctx.ellipse(px, py, r * 2.2, r * 0.4, rand2 * Math.PI, 0, Math.PI * 2);
+        ctx.stroke();
+      } else if (type === 1) {
+        ctx.fillStyle = "rgba(0, 0, 0, 0.2)";
+        for (let i = 0; i < 3; i++) {
+          ctx.beginPath();
+          ctx.arc(px + (rand1 - 0.5) * r, py + (rand2 - 0.5) * r, r * 0.2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
       ctx.restore();
     }
   }
@@ -1100,12 +1222,12 @@ class SkyboundGame {
       ctx.save();
       const px = x + 100;
       const py = base;
-      
+
       ctx.fillStyle = "rgba(100, 110, 120, 0.8)";
       // Broken columns
       ctx.fillRect(px, py - 120, 30, 120);
       ctx.fillRect(px + 100, py - 80, 30, 80);
-      
+
       // Top beam (broken)
       ctx.beginPath();
       ctx.moveTo(px - 10, py - 120);
@@ -1292,7 +1414,7 @@ class SkyboundGame {
   drawVolcanoBackground(ctx, biome) {
     const cx = this.width * 0.5;
     const base = this.height - this.groundHeight - 40;
-    
+
     const volcanoGlow = ctx.createLinearGradient(0, base - 400, 0, base);
     volcanoGlow.addColorStop(0, "rgba(255, 50, 0, 0)");
     volcanoGlow.addColorStop(0.5, "rgba(255, 100, 0, 0.4)");
@@ -1321,17 +1443,17 @@ class SkyboundGame {
     ctx.lineTo(cx + 30, base - 200);
     ctx.lineTo(cx + 70, base - 380);
     ctx.fill();
-    
+
     ctx.save();
     for (let i = 0; i < 15; i++) {
-       const fireY = base - 380 - ((this.elapsed * 120 + i * 20) % 150);
-       const fireX = cx + Math.sin(this.elapsed * 5 + i) * 30;
-       const fireRadius = 25 - ((base - 380 - fireY) / 150) * 20;
-       const alpha = 1 - ((base - 380 - fireY) / 150);
-       ctx.fillStyle = i % 2 === 0 ? `rgba(255, 100, 0, ${alpha})` : `rgba(255, 200, 0, ${alpha})`;
-       ctx.beginPath();
-       ctx.arc(fireX, fireY, Math.max(2, fireRadius), 0, Math.PI * 2);
-       ctx.fill();
+      const fireY = base - 380 - ((this.elapsed * 120 + i * 20) % 150);
+      const fireX = cx + Math.sin(this.elapsed * 5 + i) * 30;
+      const fireRadius = 25 - ((base - 380 - fireY) / 150) * 20;
+      const alpha = 1 - ((base - 380 - fireY) / 150);
+      ctx.fillStyle = i % 2 === 0 ? `rgba(255, 100, 0, ${alpha})` : `rgba(255, 200, 0, ${alpha})`;
+      ctx.beginPath();
+      ctx.arc(fireX, fireY, Math.max(2, fireRadius), 0, Math.PI * 2);
+      ctx.fill();
     }
     const craterGlow = ctx.createRadialGradient(cx, base - 380, 10, cx, base - 380, 80 + Math.sin(this.elapsed * 10) * 10);
     craterGlow.addColorStop(0, "rgba(255, 255, 200, 1)");
