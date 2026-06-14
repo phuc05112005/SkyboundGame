@@ -8,13 +8,22 @@ class VerticalObstacle {
     
     // Choose obstacle type based on sequence (difficulty)
     const types = ["centered-pair", "rotating-ring", "sliding-gap"];
-    this.type = types[Math.floor(Math.random() * types.length)];
-    
+    // Make first part of the run more readable by biasing types a bit
+    const earlyBias = sequence < 12 ? 0.35 : 0;
+    this.type = types[Math.floor(Math.random() * types.length * (1 - earlyBias) + Math.random() * earlyBias * types.length)];
+
     // Customization based on type
-    this.gap = 180 - Math.min(50, sequence * 1.5); // Wider gap (was 140)
-    this.speed = config.speed * (0.4 + Math.random() * 0.3); // Slower movement
+    // Wider gap early, then tightens.
+    const tighten = Math.min(62, sequence * 1.8);
+    this.gap = 192 - tighten;
+    this.gap = Math.max(118, this.gap);
+
+    // Slower movement but with more “feel” variation.
+    this.speed = config.speed * (0.38 + Math.random() * 0.28);
+
     this.angle = 0;
-    this.rotationSpeed = 0.8 + Math.random() * 0.8; // Slower rotation (was 1.2+)
+    this.rotationSpeed = 0.7 + Math.random() * 0.85;
+
     
     // Ocean -> Sky -> Space colors
     this.color = this.getThemeColor(y);

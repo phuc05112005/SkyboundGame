@@ -471,17 +471,23 @@ class SkyboundGame {
     
     if (this.gameMode === "vertical") {
       this.player.x = this.width * 0.5;
-      this.player.y = this.height * 0.6;
-      this.spawnTimer = 0.6;
+      this.player.y = this.height * 0.62;
+
+      // Vertical feel: easier start + less punishing early obstacles
+      this.spawnTimer = 0.55;
       this.worldY = 0;
-      
+
       // Populate initial platforms so the world doesn't look empty
-      for (let i = 0; i < 6; i++) {
-        const y = this.height * 0.4 - i * 220;
-        this.verticalObstacles.push(new VerticalObstacle(y, this.width, this.config, this.nextPipeSequence++));
+      // and give the player a short “warm up” safe stretch.
+      this.verticalDifficultyRamp = 0; // 0..1 grows during the first ~10 seconds
+      for (let i = 0; i < 7; i++) {
+        const y = this.height * 0.45 - i * 210;
+        const seq = this.nextPipeSequence++;
+        this.verticalObstacles.push(new VerticalObstacle(y, this.width, this.config, seq));
       }
-      this.ui.toast("VERTICAL MODE", "Fly Up!", true);
+      this.ui.toast("VERTICAL MODE", "Fly Up! (EASY START)", true);
     } else {
+
       this.player.x = this.width * 0.5;
       this.player.y = this.height * 0.42;
       this.spawnTimer = 0;
@@ -613,20 +619,42 @@ class SkyboundGame {
   updateVertical(rawDt, dt) {
     // Player stays centered horizontally in this mode
     this.player.x = this.width * 0.5;
-    
-    // We want the camera to follow the player upwards.
+
+    // Vertical feel upgrades:
+    // - Smooth camera follow (less “jitter”)
+    // - Gentle upward speed boost at the beginning (easier, more readable)
+    // - Spawn pacing ramps to harder as you gain altitude
+
     let worldSpeed = 0;
-    if (this.player.y < this.height * 0.5 && this.player.vy < 0) {
+    const followY = this.height * 0.5;
+
+    // A small “forgiveness” window so the camera feels premium
+    const followDeadZone = this.height * 0.03;
+    const targetY = followY + (this.player.y < followY ? 0 : 0);
+
+    if (this.player.y < followY - followDeadZone && this.player.vy < 0) {
       worldSpeed = -this.player.vy;
-      this.player.y = this.height * 0.5;
+      this.player.y = followY;
       this.worldY += worldSpeed * dt;
     }
 
+    // Ramp difficulty for vertical mode
+    this.verticalDifficultyRamp = Math.min(1, (this.worldY || 0) / 9000);
+    const ramp = this.verticalDifficultyRamp;
+
+    // Spawn pacing: starts easier then becomes faster
     this.spawnTimer -= dt;
     if (this.spawnTimer <= 0) {
-      this.spawnTimer = 2.0; // More time between obstacles (was 1.6)
-      this.verticalObstacles.push(new VerticalObstacle(-250, this.width, this.config, this.nextPipeSequence++));
+      const baseSpawn = 2.35; // easier early
+      const fastAdd = 0.95;   // how much it speeds up
+      const spawn = baseSpawn - fastAdd * ramp;
+
+      this.spawnTimer = Math.max(1.55, spawn);
+      this.verticalObstacles.push(
+        new VerticalObstacle(-250, this.width, this.config, this.nextPipeSequence++)
+      );
     }
+
 
     this.verticalObstacles.forEach((obs) => obs.update(dt, worldSpeed));
     this.verticalObstacles = this.verticalObstacles.filter((obs) => obs.y < this.height + 200);

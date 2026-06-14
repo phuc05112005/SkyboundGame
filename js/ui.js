@@ -12,6 +12,12 @@ class GameUI {
     };
     this.hud = document.getElementById("hud");
     this.scoreText = document.getElementById("scoreText");
+
+    // Combo UI (fix: previously undefined -> crash)
+    this.comboCard = document.getElementById("comboCard");
+    this.multiplierText = document.getElementById("multiplierText");
+    this.comboText = document.getElementById("comboText");
+
     this.powerStatus = document.getElementById("powerStatus");
     this.toastLayer = document.getElementById("toastLayer");
     this.muteButton = document.getElementById("muteButton");
@@ -48,6 +54,7 @@ class GameUI {
     this.drawBrandLogo();
     this.refreshStats();
   }
+
 
   bindDom() {
     document.querySelectorAll("[data-action]").forEach((button) => {
@@ -109,6 +116,7 @@ class GameUI {
     this.difficultySelect.value = settings.difficulty;
     this.setMuted(settings.muted);
   }
+
 
   readSettings() {
     return {
@@ -260,17 +268,20 @@ class GameUI {
   }
 
   updateCombo(combo, multiplier) {
-    if (!this.comboCard) return;
+    // Guard để tránh crash nếu HUD combo không có node (do thay đổi HTML)
+    if (!this.comboCard || !this.comboText || !this.multiplierText) return;
+
     this.comboText.textContent = combo;
     this.multiplierText.textContent = `x${multiplier}`;
-    
+
     // Thêm hiệu ứng rung nhẹ khi combo tăng
     this.comboCard.classList.remove("bump");
     void this.comboCard.offsetWidth; // Force reflow
     if (combo > 0) this.comboCard.classList.add("bump");
-    
+
     this.comboCard.style.display = combo > 0 ? "flex" : "none";
   }
+
 
   updatePower(text) {
     this.powerStatus.textContent = text;
