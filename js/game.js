@@ -26,6 +26,8 @@ class SkyboundGame {
     this.trees = [];
     this.groundOffset = 0;
     this.nextPipeSequence = 1;
+    this.gameMode = "classic";
+    this.worldY = 0;
     this.biomeIndex = 0;
     this.previousBiomeIndex = 0;
     this.biomeBlend = 0;
@@ -34,6 +36,8 @@ class SkyboundGame {
     this.effectsEnabled = true;
     this.difficulty = "normal";
     this.recordedGameOver = false;
+    this.canRestart = false;
+    this.keys = {};
     this.achievements = [
       { id: "firstFlight", title: "First Flight", test: () => this.storage.getStats().totalGames >= 1 },
       { id: "score10", title: "Score 10", test: () => this.score >= 10 },
@@ -248,16 +252,41 @@ class SkyboundGame {
   }
 
   bindEvents() {
-    // DOM and keyboard inputs are funneled into a small set of game commands.
     window.addEventListener("resize", () => this.resize());
-    window.addEventListener("keydown", (event) => this.handleKey(event));
-    this.canvas.addEventListener("pointerdown", () => this.handlePrimaryAction());
-    this.ui.on("start", () => this.startGame());
+    
+    window.addEventListener("keydown", (event) => {
+      const isActionKey = event.code === "Space" || event.key === " ";
+      if (isActionKey) {
+        event.preventDefault();
+        this.keys["Space"] = true;
+        this.handlePrimaryAction();
+      }
+      if (event.code === "KeyA" || event.key === "a" || event.code === "ArrowLeft") this.keys["Left"] = true;
+      if (event.code === "KeyD" || event.key === "d" || event.code === "ArrowRight") this.keys["Right"] = true;
+      
+      if (event.code === "KeyP" || event.key === "p") this.togglePause();
+      if (event.code === "KeyR" || event.key === "r") this.startGame(this.gameMode);
+      if (event.code === "Escape") this.goMenu();
+    });
+
+    window.addEventListener("keyup", (event) => {
+      if (event.code === "Space" || event.key === " ") this.keys["Space"] = false;
+      if (event.code === "KeyA" || event.key === "a" || event.code === "ArrowLeft") this.keys["Left"] = false;
+      if (event.code === "KeyD" || event.key === "d" || event.code === "ArrowRight") this.keys["Right"] = false;
+    });
+
+    this.canvas.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      this.handlePrimaryAction();
+    });
+
+    this.ui.on("start", () => this.startGame("classic"));
+    this.ui.on("start-vertical", () => this.startGame("vertical"));
     this.ui.on("customize", () => this.openCustomize());
     this.ui.on("settings", () => this.ui.show("settings"));
     this.ui.on("credits", () => this.ui.show("credits"));
     this.ui.on("back-menu", () => this.goMenu());
-    this.ui.on("restart", () => this.startGame());
+    this.ui.on("restart", () => this.startGame(this.gameMode));
     this.ui.on("resume", () => this.resumeGame());
     this.ui.on("save-settings", () => {
       const settings = this.ui.readSettings();
@@ -386,36 +415,32 @@ class SkyboundGame {
     return this.configs[this.difficulty] || this.configs.normal;
   }
 
-  handleKey(event) {
-    if (["Space", "KeyP", "KeyR", "Escape"].includes(event.code)) event.preventDefault();
-    if (event.code === "Space") {
-      if (this.state === "gameOver") {
-        this.startGame();
-      } else {
-        this.handlePrimaryAction();
-      }
-    }
-    if (event.code === "KeyP") this.togglePause();
-    if (event.code === "KeyR") this.startGame();
-    if (event.code === "Escape") this.goMenu();
-  }
-
   handlePrimaryAction() {
-    if (this.state === "menu") {
-      this.startGame();
+    if (this.state === "playing") {
+      this.player.flap();
+      this.audio.jump();
+      this.shake = Math.max(this.shake, 3.5);
+      if (this.effectsEnabled) {
+        this.particles.trail(this.player.x - 22, this.player.y + 8);
+        this.particles.feathers(this.player.x - 10, this.player.y + 8);
+      }
       return;
     }
-    if (this.state !== "playing") return;
-    this.player.flap();
-    this.audio.jump();
-    this.shake = Math.max(this.shake, 3.5);
-    if (this.effectsEnabled) {
-      this.particles.trail(this.player.x - 22, this.player.y + 8);
-      this.particles.feathers(this.player.x - 10, this.player.y + 8);
+
+    if (this.state === "menu") {
+      this.startGame(this.gameMode || "classic");
+      return;
+    }
+
+    if (this.state === "gameOver") {
+      if (this.canRestart) this.startGame(this.gameMode || "classic");
+      return;
     }
   }
 
-  startGame() {
+  startGame(mode) {
+    if (mode) this.gameMode = mode;
+    this.canRestart = false;
     this.audio.resume();
     this.audio.setMood(this.biomes[0]);
     this.audio.startMusic();
@@ -423,7 +448,6 @@ class SkyboundGame {
     this.score = 0;
     this.streak = 0;
     this.elapsed = 0;
-    this.spawnTimer = 0;
     this.powerTimer = 2.4;
     this.combo = 0;
     this.multiplier = 1;
@@ -438,12 +462,38 @@ class SkyboundGame {
     this.hitFreeze = 0;
     this.recordedGameOver = false;
     this.pipes = [];
+    this.verticalObstacles = [];
     this.powerUps = [];
     this.scoreTexts = [];
     this.particles.clear();
     this.player.reset();
-    this.player.x = this.width * 0.5;
-    this.player.y = this.height * 0.42;
+    this.worldY = 0;
+    
+    if (this.gameMode === "vertical") {
+      this.player.x = this.width * 0.5;
+      this.player.y = this.height * 0.62;
+
+      // Vertical feel: easier start + less punishing early obstacles
+      this.spawnTimer = 0.55;
+      this.worldY = 0;
+
+      // Populate initial platforms so the world doesn't look empty
+      // and give the player a short “warm up” safe stretch.
+      this.verticalDifficultyRamp = 0; // 0..1 grows during the first ~10 seconds
+      for (let i = 0; i < 7; i++) {
+        const y = this.height * 0.45 - i * 210;
+        const seq = this.nextPipeSequence++;
+        this.verticalObstacles.push(new VerticalObstacle(y, this.width, this.config, seq));
+      }
+      this.ui.toast("VERTICAL MODE", "Fly Up! (EASY START)", true);
+    } else {
+
+      this.player.x = this.width * 0.5;
+      this.player.y = this.height * 0.42;
+      this.spawnTimer = 0;
+      this.ui.toast("CLASSIC MODE", "Fly Straight!", true);
+    }
+    
     this.ui.updateScore(0);
     this.ui.updatePower("Ready");
     this.ui.show(null);
@@ -500,15 +550,7 @@ class SkyboundGame {
     }
     this.updateScenery(rawDt);
 
-    // Update foreground parallax
-    this.foregroundItems.forEach((item) => {
-      item.x -= item.speed * rawDt;
-      if (item.x < -item.size) {
-        item.x = this.width + item.size;
-        item.y = Math.random() * this.height;
-      }
-    });
-
+    // Update common elements
     this.particles.update(rawDt, this.width, this.height, this.effectsEnabled);
     this.scoreTexts.forEach((text) => {
       text.life -= rawDt;
@@ -530,6 +572,23 @@ class SkyboundGame {
     if (this.effectsEnabled && this.player.vy < -80 && Math.random() < 0.7) {
       this.particles.trail(this.player.x - 24, this.player.y + 8);
     }
+
+    if (this.gameMode === "vertical") {
+      this.updateVertical(rawDt, dt);
+    } else {
+      this.updateClassic(rawDt, dt);
+    }
+  }
+
+  updateClassic(rawDt, dt) {
+    // Update foreground parallax
+    this.foregroundItems.forEach((item) => {
+      item.x -= item.speed * rawDt;
+      if (item.x < -item.size) {
+        item.x = this.width + item.size;
+        item.y = Math.random() * this.height;
+      }
+    });
 
     this.spawnTimer -= dt;
     if (this.spawnTimer <= 0) {
@@ -557,18 +616,117 @@ class SkyboundGame {
     this.checkAchievements();
   }
 
+  updateVertical(rawDt, dt) {
+    // Player stays centered horizontally in this mode
+    this.player.x = this.width * 0.5;
+
+    // Vertical feel upgrades:
+    // - Smooth camera follow (less “jitter”)
+    // - Gentle upward speed boost at the beginning (easier, more readable)
+    // - Spawn pacing ramps to harder as you gain altitude
+
+    let worldSpeed = 0;
+    const followY = this.height * 0.5;
+
+    // A small “forgiveness” window so the camera feels premium
+    const followDeadZone = this.height * 0.03;
+    const targetY = followY + (this.player.y < followY ? 0 : 0);
+
+    if (this.player.y < followY - followDeadZone && this.player.vy < 0) {
+      worldSpeed = -this.player.vy;
+      this.player.y = followY;
+      this.worldY += worldSpeed * dt;
+    }
+
+    // Ramp difficulty for vertical mode
+    this.verticalDifficultyRamp = Math.min(1, (this.worldY || 0) / 9000);
+    const ramp = this.verticalDifficultyRamp;
+
+    // Spawn pacing: starts easier then becomes faster
+    this.spawnTimer -= dt;
+    if (this.spawnTimer <= 0) {
+      const baseSpawn = 2.35; // easier early
+      const fastAdd = 0.95;   // how much it speeds up
+      const spawn = baseSpawn - fastAdd * ramp;
+
+      this.spawnTimer = Math.max(1.55, spawn);
+      this.verticalObstacles.push(
+        new VerticalObstacle(-250, this.width, this.config, this.nextPipeSequence++)
+      );
+    }
+
+
+    this.verticalObstacles.forEach((obs) => obs.update(dt, worldSpeed));
+    this.verticalObstacles = this.verticalObstacles.filter((obs) => obs.y < this.height + 200);
+
+    this.checkVerticalScores();
+    this.checkVerticalCollisions();
+    this.updatePowerLabel();
+  }
+
+  checkVerticalScores() {
+    this.verticalObstacles.forEach((obs) => {
+      if (!obs.scored && obs.y > this.player.y) {
+        obs.scored = true;
+        this.score += 1;
+        this.ui.updateScore(this.score);
+        this.audio.point();
+        this.scoreTexts.push({ x: this.player.x + 34, y: this.player.y - 26, text: "+1", life: 0.8, alpha: 1 });
+      }
+    });
+  }
+
+  checkVerticalCollisions() {
+    const hitObstacle = this.verticalObstacles.some((obs) => obs.collidesWith(this.player));
+
+    if (this.player.y > this.height + 150) {
+       this.gameOver();
+       return;
+    }
+
+    if (hitObstacle) {
+      if (this.player.shield > 0) {
+        this.player.shield = 0;
+        this.player.invulnerable = 0.9;
+        this.shake = 8;
+        this.audio.collision();
+        return;
+      }
+      this.gameOver();
+    }
+  }
+
   updateScenery(dt) {
-    const parallaxSpeed = this.state === "playing" ? this.config.speed : 55;
+    let parallaxSpeed = this.state === "playing" ? this.config.speed : 55;
+    if (this.gameMode === "vertical") parallaxSpeed = 0;
+    
+    let vSpeed = 0;
+
+    if (this.gameMode === "vertical" && this.state === "playing") {
+      // Use player vertical velocity for parallax if camera is moving
+      if (this.player.y <= this.height * 0.5 && this.player.vy < 0) {
+        vSpeed = -this.player.vy;
+      }
+    }
+
     this.sceneryOffset = (this.sceneryOffset || 0) + parallaxSpeed * dt;
     this.clouds.forEach((cloud) => {
       cloud.x -= cloud.speed * dt;
+      if (this.gameMode === "vertical") cloud.y += vSpeed * 0.5 * dt;
+
       if (cloud.x < -180) {
         cloud.x = this.width + Math.random() * 160;
-        cloud.y = 50 + Math.random() * this.height * 0.36;
+        cloud.y = (this.gameMode === "vertical" ? -100 : 50) + Math.random() * this.height * 0.36;
+      }
+      if (this.gameMode === "vertical" && cloud.y > this.height + 100) {
+        cloud.y = -180;
+        cloud.x = Math.random() * this.width;
       }
     });
     this.mountainLayers.forEach((layer) => {
       layer.offset = (layer.offset || 0) + parallaxSpeed * layer.speedFactor * dt;
+      layer.vOffset = (layer.vOffset || 0) + vSpeed * layer.speedFactor * 0.2 * dt;
+      
       const startIndex = Math.floor(layer.offset / layer.spacing) - 2;
       const count = Math.ceil(this.width / layer.spacing) + 5;
       layer.points = [];
@@ -586,9 +744,12 @@ class SkyboundGame {
     });
     this.trees.forEach((tree) => {
       tree.x -= parallaxSpeed * 0.26 * dt;
+      if (this.gameMode === "vertical") tree.y = (tree.y || 0) + vSpeed * dt;
+
       if (tree.x < -80) {
         tree.x = this.width + Math.random() * 80;
         tree.h = 42 + Math.random() * 80;
+        if (this.gameMode === "vertical") tree.y = -100;
       }
     });
     const biome = this.biomes[this.biomeIndex % this.biomes.length];
@@ -752,7 +913,10 @@ class SkyboundGame {
     this.multiplier = 1;
     this.ui.updateCombo(0, 1);
     this.checkAchievements();
-    window.setTimeout(() => this.ui.showGameOver(this.score, stats.highScore), 460);
+    window.setTimeout(() => {
+      this.ui.showGameOver(this.score, stats.highScore);
+      this.canRestart = true;
+    }, 460);
   }
 
   checkAchievements() {
@@ -771,15 +935,31 @@ class SkyboundGame {
     if (this.shake > 0 && this.effectsEnabled) {
       ctx.translate(this.shakeX, this.shakeY);
     }
-    this.pipes.forEach((pipe) => pipe.draw(ctx, this.height, this.effectsEnabled));
-    this.powerUps.forEach((powerUp) => powerUp.draw(ctx));
-    this.particles.draw(ctx);
-    this.drawPlayerWithMotionBlur(ctx, rawDt);
+    
+    if (this.gameMode === "vertical") {
+      this.drawVertical(ctx);
+    } else {
+      this.drawClassic(ctx, rawDt);
+    }
+    
     this.drawScoreTexts(ctx);
     this.drawGround(ctx);
     ctx.restore();
     this.drawForeground(ctx);
     this.drawOverlay(ctx);
+  }
+
+  drawClassic(ctx, rawDt) {
+    this.pipes.forEach((pipe) => pipe.draw(ctx, this.height, this.effectsEnabled));
+    this.powerUps.forEach((powerUp) => powerUp.draw(ctx));
+    this.particles.draw(ctx);
+    this.drawPlayerWithMotionBlur(ctx, rawDt);
+  }
+
+  drawVertical(ctx) {
+    this.verticalObstacles.forEach((obs) => obs.draw(ctx, this.effectsEnabled));
+    this.particles.draw(ctx);
+    this.player.draw(ctx, this.effectsEnabled);
   }
 
   drawForeground(ctx) {
@@ -806,23 +986,100 @@ class SkyboundGame {
   }
 
   drawBackground(ctx) {
-    // Five parallax layers: animated sky, clouds, mountains, forest, and ground.
     const biome = this.getActiveBiome();
+    let bgTop, bgMid, bgBot;
+
+    if (this.gameMode === "vertical") {
+      // Altitude-based transition: Deep Ocean -> Sky -> Space
+      // worldY increases as we go up. Let's normalize it.
+      const altitude = this.worldY;
+      
+      if (altitude < 3000) {
+        // Deep Ocean
+        const t = Math.max(0, altitude / 3000);
+        bgTop = this.mixColor("#020617", "#1e3a8a", t);
+        bgMid = this.mixColor("#0f172a", "#3b82f6", t);
+        bgBot = this.mixColor("#1e3a8a", "#60a5fa", t);
+      } else if (altitude < 8000) {
+        // Sky transition
+        const t = (altitude - 3000) / 5000;
+        bgTop = this.mixColor("#1e3a8a", "#0c0a09", t);
+        bgMid = this.mixColor("#3b82f6", "#1c1917", t);
+        bgBot = this.mixColor("#60a5fa", "#44403c", t);
+      } else {
+        // Deep Space
+        bgTop = "#020617";
+        bgMid = "#000000";
+        bgBot = "#111827";
+      }
+    } else {
+      bgTop = biome.skyTop;
+      bgMid = biome.skyMid;
+      bgBot = biome.skyBottom;
+    }
+
     const sky = ctx.createLinearGradient(0, 0, 0, this.height);
-    sky.addColorStop(0, biome.skyTop);
-    sky.addColorStop(0.5, biome.skyMid);
-    sky.addColorStop(1, biome.skyBottom);
+    sky.addColorStop(0, bgTop);
+    sky.addColorStop(0.5, bgMid);
+    sky.addColorStop(1, bgBot);
     ctx.fillStyle = sky;
     ctx.fillRect(0, 0, this.width, this.height);
 
-    this.drawBiomeAtmosphere(ctx, biome);
+    if (this.gameMode !== "vertical") {
+      this.drawBiomeAtmosphere(ctx, biome);
+      this.clouds.forEach((cloud) => this.drawCloud(ctx, cloud, biome));
+      this.drawRollingHills(ctx, biome, "far");
+      this.drawUniqueArchitecture(ctx, biome);
+      this.drawMountains(ctx, biome);
+      this.drawRollingHills(ctx, biome, "near");
+      this.drawForest(ctx, biome);
+    } else {
+      // Altitude-based scenery
+      if (this.worldY > 7000) this.drawStars(ctx);
+      if (this.worldY < 4000) this.drawOceanBubbles(ctx);
+      if (this.worldY > 2000 && this.worldY < 10000) this.drawVerticalClouds(ctx);
+    }
+  }
 
-    this.clouds.forEach((cloud) => this.drawCloud(ctx, cloud, biome));
-    this.drawRollingHills(ctx, biome, "far");
-    this.drawUniqueArchitecture(ctx, biome);
-    this.drawMountains(ctx, biome);
-    this.drawRollingHills(ctx, biome, "near");
-    this.drawForest(ctx, biome);
+  drawStars(ctx) {
+    ctx.save();
+    ctx.fillStyle = "#fff";
+    for (let i = 0; i < 50; i++) {
+      const x = (Math.sin(i * 123.45) * 0.5 + 0.5) * this.width;
+      const y = (Math.cos(i * 456.78) * 0.5 + 0.5) * this.height;
+      const size = (Math.sin(this.elapsed * 2 + i) * 0.5 + 0.5) * 2;
+      ctx.globalAlpha = 0.3 + Math.sin(this.elapsed + i) * 0.4;
+      ctx.beginPath();
+      ctx.arc(x, y, size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  drawOceanBubbles(ctx) {
+    ctx.save();
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
+    for (let i = 0; i < 20; i++) {
+      const x = (Math.sin(i * 88.8) * 0.5 + 0.5) * this.width;
+      const y = ((i * 100 - this.worldY * 0.5) % (this.height + 200)) + 100;
+      ctx.beginPath();
+      ctx.arc(x, y, 5 + (i % 10), 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  drawVerticalClouds(ctx) {
+    ctx.save();
+    ctx.fillStyle = "rgba(255, 255, 255, 0.15)";
+    for (let i = 0; i < 8; i++) {
+      const x = (Math.sin(i * 99.9) * 0.5 + 0.5) * this.width;
+      const y = ((i * 300 - this.worldY * 0.8) % (this.height + 400)) + 200;
+      ctx.beginPath();
+      ctx.ellipse(x, y, 100 + i * 20, 40 + i * 5, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
   }
 
   getActiveBiome() {
@@ -1336,7 +1593,8 @@ class SkyboundGame {
   drawMountainLayer(ctx, biome, layer, layerIndex, base) {
     const alpha = [0.18, 0.28, 0.42, 0.58][layerIndex];
     const lift = [82, 56, 28, 0][layerIndex];
-    const layerBase = base + lift;
+    let layerBase = base + lift;
+    if (this.gameMode === "vertical") layerBase += (layer.vOffset || 0);
     ctx.save();
 
     const gradient = ctx.createLinearGradient(0, layerBase - this.height * 0.34, 0, layerBase + 80);
@@ -1509,10 +1767,15 @@ class SkyboundGame {
   }
 
   drawGround(ctx) {
-    const top = Math.round(this.height - this.groundHeight);
     const biome = this.getActiveBiome();
     const isOcean = biome.type === "ocean";
     const isIce = biome.type === "ice";
+    
+    let top = Math.round(this.height - this.groundHeight);
+    if (this.gameMode === "vertical") {
+      top += this.worldY;
+      if (top > this.height) return;
+    }
 
     const gradient = ctx.createLinearGradient(0, top, 0, this.height);
     gradient.addColorStop(0, isOcean ? "#f5b041" : (isIce ? "#ffffff" : biome.groundA));
