@@ -54,6 +54,7 @@ class GameUI {
       button.addEventListener("click", () => {
         this.audio.click();
         this.emit(button.dataset.action);
+        button.blur();
       });
     });
     this.muteButton.addEventListener("click", () => this.emit("toggle-mute"));
