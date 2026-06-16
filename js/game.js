@@ -473,19 +473,19 @@ class SkyboundGame {
       this.player.x = this.width * 0.5;
       this.player.y = this.height * 0.62;
 
-      // Vertical feel: easier start + less punishing early obstacles
-      this.spawnTimer = 0.55;
       this.worldY = 0;
+      this.lastVerticalSpawnY = 0;
 
-      // Populate initial platforms so the world doesn't look empty
-      // and give the player a short “warm up” safe stretch.
-      this.verticalDifficultyRamp = 0; // 0..1 grows during the first ~10 seconds
-      for (let i = 0; i < 7; i++) {
-        const y = this.height * 0.45 - i * 210;
+      // Populate initial platforms with fixed spacing
+      this.verticalDifficultyRamp = 0;
+      for (let i = 0; i < 5; i++) {
+        const spacing = 650;
+        const y = this.height * 0.3 - i * spacing;
         const seq = this.nextPipeSequence++;
         this.verticalObstacles.push(new VerticalObstacle(y, this.width, this.config, seq));
+        this.lastVerticalSpawnY = y;
       }
-      this.ui.toast("VERTICAL MODE", "Fly Up! (EASY START)", true);
+      this.ui.toast("VERTICAL MODE", "Fly Up! (Classic Quality)", true);
     } else {
 
       this.player.x = this.width * 0.5;
@@ -568,9 +568,9 @@ class SkyboundGame {
 
     if (this.state !== "playing") return;
 
-    this.player.update(dt, this.config);
+    this.player.update(dt, this.config, this.gameMode === "vertical");
     if (this.effectsEnabled && this.player.vy < -80 && Math.random() < 0.7) {
-      this.particles.trail(this.player.x - 24, this.player.y + 8);
+      this.particles.trail(this.player.x - (this.gameMode === "vertical" ? 0 : 24), this.player.y + (this.gameMode === "vertical" ? 24 : 8));
     }
 
     if (this.gameMode === "vertical") {
@@ -617,47 +617,51 @@ class SkyboundGame {
   }
 
   updateVertical(rawDt, dt) {
-    // Player stays centered horizontally in this mode
     this.player.x = this.width * 0.5;
-
-    // Vertical feel upgrades:
-    // - Smooth camera follow (less “jitter”)
-    // - Gentle upward speed boost at the beginning (easier, more readable)
-    // - Spawn pacing ramps to harder as you gain altitude
-
     let worldSpeed = 0;
-    const followY = this.height * 0.5;
+    const followY = this.height * 0.55;
 
-    // A small “forgiveness” window so the camera feels premium
-    const followDeadZone = this.height * 0.03;
-    const targetY = followY + (this.player.y < followY ? 0 : 0);
-
-    if (this.player.y < followY - followDeadZone && this.player.vy < 0) {
+    if (this.player.y < followY && this.player.vy < 0) {
       worldSpeed = -this.player.vy;
       this.player.y = followY;
       this.worldY += worldSpeed * dt;
     }
 
-    // Ramp difficulty for vertical mode
-    this.verticalDifficultyRamp = Math.min(1, (this.worldY || 0) / 9000);
-    const ramp = this.verticalDifficultyRamp;
-
-    // Spawn pacing: starts easier then becomes faster
-    this.spawnTimer -= dt;
-    if (this.spawnTimer <= 0) {
-      const baseSpawn = 2.35; // easier early
-      const fastAdd = 0.95;   // how much it speeds up
-      const spawn = baseSpawn - fastAdd * ramp;
-
-      this.spawnTimer = Math.max(1.55, spawn);
-      this.verticalObstacles.push(
-        new VerticalObstacle(-250, this.width, this.config, this.nextPipeSequence++)
-      );
+    // Distance-based spawning
+    const minSpacing = 650;
+    if (this.lastVerticalSpawnY > -450) { // If the last obstacle has moved down enough
+        const y = this.lastVerticalSpawnY - minSpacing;
+        this.verticalObstacles.push(
+          new VerticalObstacle(y, this.width, this.config, this.nextPipeSequence++)
+        );
+        this.lastVerticalSpawnY = y;
     }
 
+    // Sync lastVerticalSpawnY with scrolling
+    this.lastVerticalSpawnY += worldSpeed * dt;
+
+    // Biome Logic: Change biome every 10 points (~6500 pixels)
+    const newBiomeIndex = Math.floor(this.score / 10) % this.biomes.length;
+    if (newBiomeIndex !== this.biomeIndex) {
+      this.previousBiomeIndex = this.biomeIndex;
+      this.biomeIndex = newBiomeIndex;
+      this.biomeBlend = 1.0;
+      this.audio.setMood(this.biomes[this.biomeIndex]);
+    }
+
+    this.verticalDifficultyRamp = Math.min(1, this.worldY / 15000);
+
+    // Update foreground parallax vertically
+    this.foregroundItems.forEach((item) => {
+      item.y += (item.speed * 0.5 + worldSpeed) * rawDt;
+      if (item.y > this.height + item.size) {
+        item.y = -item.size;
+        item.x = Math.random() * this.width;
+      }
+    });
 
     this.verticalObstacles.forEach((obs) => obs.update(dt, worldSpeed));
-    this.verticalObstacles = this.verticalObstacles.filter((obs) => obs.y < this.height + 200);
+    this.verticalObstacles = this.verticalObstacles.filter((obs) => obs.y < this.height + 400);
 
     this.checkVerticalScores();
     this.checkVerticalCollisions();
@@ -704,7 +708,7 @@ class SkyboundGame {
 
     if (this.gameMode === "vertical" && this.state === "playing") {
       // Use player vertical velocity for parallax if camera is moving
-      if (this.player.y <= this.height * 0.5 && this.player.vy < 0) {
+      if (this.player.y <= this.height * 0.55 && this.player.vy < 0) {
         vSpeed = -this.player.vy;
       }
     }
@@ -957,7 +961,8 @@ class SkyboundGame {
   }
 
   drawVertical(ctx) {
-    this.verticalObstacles.forEach((obs) => obs.draw(ctx, this.effectsEnabled));
+    const biome = this.getActiveBiome();
+    this.verticalObstacles.forEach((obs) => obs.draw(ctx, this.effectsEnabled, biome));
     this.particles.draw(ctx);
     this.player.draw(ctx, this.effectsEnabled);
   }
@@ -1035,20 +1040,206 @@ class SkyboundGame {
       this.drawForest(ctx, biome);
     } else {
       // Altitude-based scenery
-      if (this.worldY > 7000) this.drawStars(ctx);
+      this.drawGodRays(ctx);
+      this.drawVerticalScenery(ctx, biome);
       if (this.worldY < 4000) this.drawOceanBubbles(ctx);
-      if (this.worldY > 2000 && this.worldY < 10000) this.drawVerticalClouds(ctx);
+      if (this.worldY > 9000) this.drawStars(ctx);
     }
+  }
+
+  drawVerticalScenery(ctx, biome) {
+    const vOffset = this.worldY;
+    
+    // Draw Atmosphere/Clouds
+    this.drawVerticalClouds(ctx);
+    
+    // Side Cliffs (Mountains adaptive to biomes)
+    this.drawSideCliffs(ctx, biome, vOffset);
+    
+    // Forest/Architecture on cliffs
+    this.drawSideDecor(ctx, biome, vOffset);
+  }
+
+  drawSideCliffs(ctx, biome, vOffset) {
+    ctx.save();
+    const cliffWidth = Math.max(60, this.width * 0.12);
+    const detailY = 400;
+    
+    // Left Cliff
+    ctx.fillStyle = biome.mountain;
+    ctx.fillRect(0, 0, cliffWidth, this.height);
+    
+    // Right Cliff
+    ctx.fillRect(this.width - cliffWidth, 0, cliffWidth, this.height);
+    
+    // Cliff details (cracks, rocks) scrolling
+    ctx.strokeStyle = "rgba(0,0,0,0.15)";
+    ctx.lineWidth = 2;
+    for(let i = -1; i <= Math.ceil(this.height/detailY); i++) {
+        const y = ((i * detailY + vOffset * 0.8) % (this.height + detailY)) - detailY/2;
+        
+        // Left details
+        ctx.beginPath();
+        ctx.moveTo(cliffWidth - 20, y);
+        ctx.lineTo(cliffWidth, y + 40);
+        ctx.stroke();
+        
+        // Right details
+        ctx.beginPath();
+        ctx.moveTo(this.width - cliffWidth + 20, y);
+        ctx.lineTo(this.width - cliffWidth, y + 40);
+        ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  drawSideDecor(ctx, biome, vOffset) {
+    const cliffWidth = Math.max(60, this.width * 0.12);
+    const spacing = 800;
+    
+    for (let i = -1; i <= Math.ceil(this.height/spacing); i++) {
+        const y = ((i * spacing + vOffset) % (this.height + spacing)) - spacing/2;
+        const side = i % 2 === 0 ? cliffWidth - 5 : this.width - cliffWidth + 5;
+        const flip = i % 2 === 0 ? 1 : -1;
+        
+        ctx.save();
+        ctx.translate(side, y);
+        
+        if (biome.type === "ocean") {
+            // Corals/Seaweed
+            ctx.fillStyle = biome.accent;
+            ctx.fillRect(0, -20, 15 * flip, 40);
+        } else if (biome.architecture === "cyber") {
+            // Neon panels
+            ctx.fillStyle = biome.accent;
+            ctx.globalAlpha = 0.6 + Math.sin(this.elapsed * 2 + i) * 0.3;
+            ctx.fillRect(0, -50, 4 * flip, 100);
+        } else if (biome.architecture === "pyramids") {
+            // Ancient blocks
+            ctx.fillStyle = biome.groundC;
+            ctx.fillRect(0, -40, 20 * flip, 80);
+        } else {
+            // Trees/Greenery
+            ctx.fillStyle = biome.forestA;
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(30 * flip, -30);
+            ctx.lineTo(30 * flip, 30);
+            ctx.closePath();
+            ctx.fill();
+        }
+        
+        ctx.restore();
+    }
+  }
+
+  drawGodRays(ctx) {
+    ctx.save();
+    const time = this.elapsed * 0.5;
+    ctx.globalCompositeOperation = "lighter";
+    for (let i = 0; i < 5; i++) {
+      const angle = -0.2 + Math.sin(time + i) * 0.1;
+      const x = (i / 5) * this.width + Math.cos(time * 0.3 + i) * 50;
+      
+      const grad = ctx.createLinearGradient(x, 0, x + Math.tan(angle) * this.height, this.height);
+      grad.addColorStop(0, "rgba(255, 255, 255, 0.15)");
+      grad.addColorStop(1, "rgba(255, 255, 255, 0)");
+      
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.moveTo(x - 30, 0);
+      ctx.lineTo(x + 30, 0);
+      ctx.lineTo(x + Math.tan(angle) * this.height + 100, this.height);
+      ctx.lineTo(x + Math.tan(angle) * this.height - 100, this.height);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  drawFloatingIslands(ctx) {
+    ctx.save();
+    for (let i = 0; i < 4; i++) {
+      const off = i * 2000;
+      const y = ((this.worldY * 0.4 + off) % (this.height + 1000)) - 500;
+      const x = (Math.sin(i * 123.45) * 0.4 + 0.5) * this.width;
+      const scale = 0.8 + (i % 3) * 0.2;
+      
+      ctx.save();
+      ctx.translate(x, this.height - y);
+      ctx.scale(scale, scale);
+      
+      // Island base
+      ctx.fillStyle = "#4b3621";
+      ctx.beginPath();
+      ctx.moveTo(-60, 0);
+      ctx.lineTo(60, 0);
+      ctx.lineTo(0, 80);
+      ctx.closePath();
+      ctx.fill();
+      
+      // Grass top
+      ctx.fillStyle = "#228b22";
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 70, 20, 0, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Little tree
+      ctx.fillStyle = "#1a472a";
+      ctx.beginPath();
+      ctx.moveTo(-10, -5);
+      ctx.lineTo(0, -40);
+      ctx.lineTo(10, -5);
+      ctx.fill();
+      
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+
+  drawAncientPillars(ctx) {
+    ctx.save();
+    for (let i = 0; i < 3; i++) {
+      const off = i * 3500;
+      const y = ((this.worldY * 0.6 + off) % (this.height + 1500)) - 750;
+      const side = i % 2 === 0 ? 40 : this.width - 100;
+      
+      ctx.save();
+      ctx.translate(side, this.height - y);
+      
+      // Pillar shadow
+      ctx.fillStyle = "rgba(0,0,0,0.2)";
+      ctx.fillRect(10, 0, 60, 400);
+      
+      // Pillar body
+      const grad = ctx.createLinearGradient(0, 0, 60, 0);
+      grad.addColorStop(0, "#cbd5e1");
+      grad.addColorStop(1, "#94a3b8");
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 60, 400);
+      
+      // Cracks/details
+      ctx.strokeStyle = "rgba(0,0,0,0.1)";
+      ctx.beginPath();
+      ctx.moveTo(10, 50); ctx.lineTo(40, 80);
+      ctx.moveTo(50, 200); ctx.lineTo(20, 240);
+      ctx.stroke();
+      
+      ctx.restore();
+    }
+    ctx.restore();
   }
 
   drawStars(ctx) {
     ctx.save();
-    ctx.fillStyle = "#fff";
-    for (let i = 0; i < 50; i++) {
+    for (let i = 0; i < 60; i++) {
       const x = (Math.sin(i * 123.45) * 0.5 + 0.5) * this.width;
       const y = (Math.cos(i * 456.78) * 0.5 + 0.5) * this.height;
-      const size = (Math.sin(this.elapsed * 2 + i) * 0.5 + 0.5) * 2;
-      ctx.globalAlpha = 0.3 + Math.sin(this.elapsed + i) * 0.4;
+      const size = (Math.sin(this.elapsed * 1.5 + i) * 0.5 + 0.5) * 1.8;
+      const alpha = 0.2 + Math.sin(this.elapsed + i) * 0.4;
+      
+      ctx.fillStyle = i % 3 === 0 ? "#818cf8" : (i % 2 === 0 ? "#f472b6" : "#fff");
+      ctx.globalAlpha = Math.max(0, alpha);
       ctx.beginPath();
       ctx.arc(x, y, size, 0, Math.PI * 2);
       ctx.fill();
@@ -1058,12 +1249,21 @@ class SkyboundGame {
 
   drawOceanBubbles(ctx) {
     ctx.save();
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < 25; i++) {
       const x = (Math.sin(i * 88.8) * 0.5 + 0.5) * this.width;
-      const y = ((i * 100 - this.worldY * 0.5) % (this.height + 200)) + 100;
+      const y = ((i * 120 - this.worldY * 0.4) % (this.height + 240)) + 120;
+      const r = 4 + (i % 12);
+      
+      const grad = ctx.createRadialGradient(x - r*0.3, y - r*0.3, 1, x, y, r);
+      grad.addColorStop(0, "rgba(255, 255, 255, 0.4)");
+      grad.addColorStop(1, "rgba(255, 255, 255, 0.05)");
+      
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
+      ctx.fillStyle = grad;
+      ctx.lineWidth = 1.5;
       ctx.beginPath();
-      ctx.arc(x, y, 5 + (i % 10), 0, Math.PI * 2);
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
       ctx.stroke();
     }
     ctx.restore();
@@ -1071,12 +1271,20 @@ class SkyboundGame {
 
   drawVerticalClouds(ctx) {
     ctx.save();
-    ctx.fillStyle = "rgba(255, 255, 255, 0.15)";
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < 12; i++) {
       const x = (Math.sin(i * 99.9) * 0.5 + 0.5) * this.width;
-      const y = ((i * 300 - this.worldY * 0.8) % (this.height + 400)) + 200;
+      const y = ((i * 350 - this.worldY * 0.7) % (this.height + 500)) + 250;
+      const w = 120 + i * 25;
+      const h = 35 + i * 8;
+      
+      const grad = ctx.createLinearGradient(x - w, y, x + w, y);
+      grad.addColorStop(0, "rgba(255, 255, 255, 0)");
+      grad.addColorStop(0.5, "rgba(255, 255, 255, 0.12)");
+      grad.addColorStop(1, "rgba(255, 255, 255, 0)");
+      
+      ctx.fillStyle = grad;
       ctx.beginPath();
-      ctx.ellipse(x, y, 100 + i * 20, 40 + i * 5, 0, 0, Math.PI * 2);
+      ctx.ellipse(x, y, w, h, 0, 0, Math.PI * 2);
       ctx.fill();
     }
     ctx.restore();

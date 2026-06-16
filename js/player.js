@@ -42,13 +42,21 @@ class Player {
     this.skin = { ...this.skin, ...skin };
   }
 
-  update(dt, physics) {
+  update(dt, physics, isVertical = false) {
     this.prevX = this.x;
     this.prevY = this.y;
     this.vy += physics.gravity * dt;
     this.vy = Math.min(this.vy, physics.maxFall);
     this.y += this.vy * dt;
-    this.rotation += ((this.vy / physics.maxFall) * 1.05 - this.rotation) * Math.min(1, dt * 8);
+    
+    // In vertical mode, the player is "stiff" and faces exactly upwards
+    if (isVertical) {
+      this.rotation = -Math.PI / 2;
+    } else {
+      const targetRotation = (this.vy / physics.maxFall) * 1.05;
+      this.rotation += (targetRotation - this.rotation) * Math.min(1, dt * 8);
+    }
+    
     this.wingTime += dt * (this.vy < 0 ? 18 : 10);
     this.invulnerable = Math.max(0, this.invulnerable - dt);
     this.shield = Math.max(0, this.shield - dt);
