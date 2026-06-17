@@ -1,27 +1,45 @@
 class VerticalObstacle {
-  constructor(y, canvasWidth, config, sequence = 1) {
+  constructor(y, canvasWidth, config, sequence = 1, opts = {}) {
     this.y = y;
     this.canvasWidth = canvasWidth;
     this.height = 40;
     this.sequence = sequence;
     this.scored = false;
-    this.direction = Math.random() > 0.5 ? 1 : -1;
-    
-    // Difficulty ramp based on sequence
-    const difficulty = Math.min(1, sequence / 40);
-    
-    // More varied obstacle types
-    const types = ["centered-pair", "rotating-ring", "sliding-gap", "expanding-gap", "swinging-hammer"];
-    this.type = types[Math.floor(Math.random() * types.length)];
 
-    // Balancing gap and speed - Much more generous now
-    const baseGap = 260 - difficulty * 70; // Start at 260, end at 190
-    this.gap = Math.max(170, baseGap + (Math.random() - 0.5) * 30);
-    
-    this.speed = config.speed * (0.3 + difficulty * 0.15);
+    this.opts = opts;
+
+    // Difficulty comes from the level curriculum (if provided) or falls back to sequence.
+    const difficulty = Number.isFinite(opts.difficulty)
+      ? Math.max(0, Math.min(1, opts.difficulty))
+      : Math.min(1, sequence / 40);
+
+    // 5 core obstacle types (aligned with draw logic):
+    const allowed = ["centered-pair", "rotating-ring", "sliding-gap", "expanding-gap", "swinging-hammer"];
+    const requested = opts.type;
+    this.type = allowed.includes(requested) ? requested : allowed[Math.floor(Math.random() * allowed.length)];
+
+    this.t = 0;
     this.angle = Math.random() * Math.PI * 2;
-    // Slower rotation for better playability
-    this.rotationSpeed = (0.5 + difficulty * 0.7) * this.direction;
+
+    // Shared sizing rules
+    const baseGap = 250 - difficulty * 70; // smaller with difficulty
+    const gapJitter = 14;
+    this.gap = Math.max(160, baseGap + (Math.random() - 0.5) * gapJitter);
+
+    // Visual thickness
+    this.barHeight = 26;
+    this.ringRadius = Math.round(128 + (1 - difficulty) * 14);
+    this.ringThickness = Math.round(22 + difficulty * 10);
+
+    // Drift parameters
+    this.driftAmplitude = Math.max(22, this.canvasWidth * 0.12) * (0.25 + difficulty * 0.75);
+    this.driftSpeed = (0.7 + difficulty * 1.6);
+
+    // Rotation params (kept subtle for playability)
+    this.rotationSpeed = (0.22 + difficulty * 0.58) * (Math.random() > 0.5 ? 1 : -1);
+
+    // Difficulty-aware motion (used in update)
+    this.speed = config.speed * (0.18 + difficulty * 0.20);
   }
 
   update(dt, worldSpeed) {
@@ -84,16 +102,16 @@ class VerticalObstacle {
     const gapAngle = 1.3 - Math.min(0.4, this.sequence * 0.01);
 
     ctx.rotate(this.angle);
-    
+
     // Outer glow for the ring
-    ctx.save();
+      ctx.save();
     ctx.globalAlpha = 0.3;
-    ctx.strokeStyle = color;
+      ctx.strokeStyle = color;
     ctx.lineWidth = thickness + 8;
-    ctx.beginPath();
+      ctx.beginPath();
     ctx.arc(0, 0, radius, gapAngle / 2, Math.PI * 2 - gapAngle / 2);
-    ctx.stroke();
-    ctx.restore();
+      ctx.stroke();
+      ctx.restore();
 
     ctx.strokeStyle = color;
     ctx.lineWidth = thickness;
@@ -103,7 +121,7 @@ class VerticalObstacle {
     ctx.beginPath();
     ctx.arc(0, 0, radius, gapAngle / 2, Math.PI * 2 - gapAngle / 2);
     ctx.stroke();
-    
+
     // Shiny top highlight
     ctx.strokeStyle = "rgba(255,255,255,0.4)";
     ctx.lineWidth = 4;
@@ -185,17 +203,17 @@ class VerticalObstacle {
       const radius = 135;
       const thickness = 28;
       const gapAngle = 1.3 - Math.min(0.4, this.sequence * 0.01);
-      
+
       return points.some(p => {
         const dx = p.x - cx;
         const dy = p.y - cy;
         const dist = Math.hypot(dx, dy);
         if (dist < radius - thickness / 2 || dist > radius + thickness / 2) return false;
-        
+
         let angle = Math.atan2(dy, dx) - this.angle;
         while (angle > Math.PI) angle -= Math.PI * 2;
         while (angle < -Math.PI) angle += Math.PI * 2;
-        
+
         return Math.abs(angle) > gapAngle / 2;
       });
     }
