@@ -467,33 +467,46 @@ class SkyboundGame {
     this.scoreTexts = [];
     this.particles.clear();
     this.player.reset();
+
+    // Shared world/altitude state
     this.worldY = 0;
-    
+
     if (this.gameMode === "vertical") {
       this.player.x = this.width * 0.5;
       this.player.y = this.height * 0.62;
 
-      this.worldY = 0;
-      this.lastVerticalSpawnY = 0;
+      // Smooth camera for vertical mode (single source of truth)
+      this.cameraY = 0;
+      this.cameraVY = 0;
+      this.targetCameraY = 0;
 
-      // Populate initial platforms with fixed spacing
+      // Distance-based spawning along camera altitude
       this.verticalDifficultyRamp = 0;
-      for (let i = 0; i < 5; i++) {
-        const spacing = 650;
-        const y = this.height * 0.3 - i * spacing;
-        const seq = this.nextPipeSequence++;
-        this.verticalObstacles.push(new VerticalObstacle(y, this.width, this.config, seq));
-        this.lastVerticalSpawnY = y;
-      }
-      this.ui.toast("VERTICAL MODE", "Fly Up! (Classic Quality)", true);
-    } else {
+      this.verticalSpawnCursor = 0;
+      this.nextVerticalSpawnAt = 0;
 
+      // Pre-fill initial obstacles so the first second feels alive
+      this.ui.toast("VERTICAL MODE", "Fly Up!", true);
+      const initialCount = 6;
+      const spacing = 560;
+      for (let i = 0; i < initialCount; i++) {
+        const altitude = i * spacing;
+        const screenY = this.height * 0.62 - altitude + this.cameraY;
+        const seq = this.nextPipeSequence++;
+        const obs = new VerticalObstacle(screenY, this.width, this.config, seq);
+        this.verticalObstacles.push(obs);
+      }
+
+      // Prime spawn cursor after initial stack
+      this.verticalSpawnCursor = initialCount * spacing;
+      this.nextVerticalSpawnAt = this.verticalSpawnCursor + 520;
+    } else {
       this.player.x = this.width * 0.5;
       this.player.y = this.height * 0.42;
       this.spawnTimer = 0;
       this.ui.toast("CLASSIC MODE", "Fly Straight!", true);
     }
-    
+
     this.ui.updateScore(0);
     this.ui.updatePower("Ready");
     this.ui.show(null);
@@ -618,27 +631,27 @@ class SkyboundGame {
 
   updateVertical(rawDt, dt) {
     this.player.x = this.width * 0.5;
-    let worldSpeed = 0;
+    this.scrollSpeed = 0;
     const followY = this.height * 0.55;
 
     if (this.player.y < followY && this.player.vy < 0) {
-      worldSpeed = -this.player.vy;
+      this.scrollSpeed = -this.player.vy;
       this.player.y = followY;
-      this.worldY += worldSpeed * dt;
+      this.worldY += this.scrollSpeed * dt;
     }
 
     // Distance-based spawning
     const minSpacing = 650;
     if (this.lastVerticalSpawnY > -450) { // If the last obstacle has moved down enough
         const y = this.lastVerticalSpawnY - minSpacing;
-        this.verticalObstacles.push(
+      this.verticalObstacles.push(
           new VerticalObstacle(y, this.width, this.config, this.nextPipeSequence++)
         );
         this.lastVerticalSpawnY = y;
     }
 
     // Sync lastVerticalSpawnY with scrolling
-    this.lastVerticalSpawnY += worldSpeed * dt;
+    this.lastVerticalSpawnY += this.scrollSpeed * dt;
 
     // Biome Logic: Change biome every 10 points (~6500 pixels)
     const newBiomeIndex = Math.floor(this.score / 10) % this.biomes.length;
@@ -651,16 +664,16 @@ class SkyboundGame {
 
     this.verticalDifficultyRamp = Math.min(1, this.worldY / 15000);
 
-    // Update foreground parallax vertically
+    // Update foreground parallax vertically (tied to scrollSpeed)
     this.foregroundItems.forEach((item) => {
-      item.y += (item.speed * 0.5 + worldSpeed) * rawDt;
+      item.y += (item.speed * 0.45 + this.scrollSpeed) * rawDt;
       if (item.y > this.height + item.size) {
         item.y = -item.size;
         item.x = Math.random() * this.width;
       }
     });
 
-    this.verticalObstacles.forEach((obs) => obs.update(dt, worldSpeed));
+    this.verticalObstacles.forEach((obs) => obs.update(dt, this.scrollSpeed));
     this.verticalObstacles = this.verticalObstacles.filter((obs) => obs.y < this.height + 400);
 
     this.checkVerticalScores();
@@ -704,14 +717,7 @@ class SkyboundGame {
     let parallaxSpeed = this.state === "playing" ? this.config.speed : 55;
     if (this.gameMode === "vertical") parallaxSpeed = 0;
     
-    let vSpeed = 0;
-
-    if (this.gameMode === "vertical" && this.state === "playing") {
-      // Use player vertical velocity for parallax if camera is moving
-      if (this.player.y <= this.height * 0.55 && this.player.vy < 0) {
-        vSpeed = -this.player.vy;
-      }
-    }
+    const vSpeed = (this.gameMode === "vertical" && this.state === "playing") ? (this.scrollSpeed || 0) : 0;
 
     this.sceneryOffset = (this.sceneryOffset || 0) + parallaxSpeed * dt;
     this.clouds.forEach((cloud) => {
@@ -799,22 +805,18 @@ class SkyboundGame {
         const isNearMiss = Math.min(distTop, distBottom) < 22;
 
         if (isNearMiss) {
-          this.combo += 5;
           this.shake = Math.max(this.shake, 12);
-          this.ui.toast("NEAR MISS!", "Combo Bonus!", true);
-          this.audio.powerUp("double"); // Dùng tạm tiếng powerup
+          this.ui.toast("NEAR MISS!", "Bonus!", true);
+          this.audio.powerUp("double");
           if (this.effectsEnabled) {
             this.particles.burst(this.player.x, this.player.y, 15, { color: "#fff", speed: 200, glow: 20 });
           }
-        } else {
-          this.combo += 1;
         }
 
         const amount = this.player.doubleScore > 0 ? 2 : 1;
         this.score += amount;
         this.streak += amount;
         this.ui.updateScore(this.score);
-        this.ui.updateCombo(this.combo, this.multiplier);
         this.audio.point();
 
         const floatText = this.player.doubleScore > 0 ? `+2 (x2)` : `+1`;
