@@ -1052,81 +1052,161 @@ class SkyboundGame {
   drawVerticalScenery(ctx, biome) {
     const vOffset = this.worldY;
     
+    // Altitude-based floating islands
+    if (this.worldY > 4000 && this.worldY < 10000) {
+      this.drawFloatingIslands(ctx);
+    }
+    
     // Draw Atmosphere/Clouds
     this.drawVerticalClouds(ctx);
     
-    // Side Cliffs (Mountains adaptive to biomes)
+    // Side Cliffs (Mountains adaptive to biomes with parallax)
     this.drawSideCliffs(ctx, biome, vOffset);
     
-    // Forest/Architecture on cliffs
+    // Forest/Architecture/Corals on cliffs
     this.drawSideDecor(ctx, biome, vOffset);
   }
 
   drawSideCliffs(ctx, biome, vOffset) {
     ctx.save();
-    const cliffWidth = Math.max(60, this.width * 0.12);
-    const detailY = 400;
+    const baseWidth = Math.max(90, this.width * 0.18);
     
-    // Left Cliff
-    ctx.fillStyle = biome.mountain;
-    ctx.fillRect(0, 0, cliffWidth, this.height);
+    const isOcean = this.worldY < 3000;
+    const isSpace = this.worldY > 8000;
     
-    // Right Cliff
-    ctx.fillRect(this.width - cliffWidth, 0, cliffWidth, this.height);
-    
-    // Cliff details (cracks, rocks) scrolling
-    ctx.strokeStyle = "rgba(0,0,0,0.15)";
-    ctx.lineWidth = 2;
-    for(let i = -1; i <= Math.ceil(this.height/detailY); i++) {
-        const y = ((i * detailY + vOffset * 0.8) % (this.height + detailY)) - detailY/2;
-        
-        // Left details
-        ctx.beginPath();
-        ctx.moveTo(cliffWidth - 20, y);
-        ctx.lineTo(cliffWidth, y + 40);
-        ctx.stroke();
-        
-        // Right details
-        ctx.beginPath();
-        ctx.moveTo(this.width - cliffWidth + 20, y);
-        ctx.lineTo(this.width - cliffWidth, y + 40);
-        ctx.stroke();
+    // 3 layers of parallax cliffs
+    for (let layer = 3; layer >= 1; layer--) {
+      const speed = 0.3 + layer * 0.2;
+      const layerOffset = vOffset * speed;
+      const cliffWidth = baseWidth - (3 - layer) * 25;
+      
+      let color;
+      if (isSpace) {
+        color = layer === 1 ? "#111827" : layer === 2 ? "#1f2937" : "#374151";
+      } else if (isOcean) {
+        color = layer === 1 ? "#0f172a" : layer === 2 ? "#1e3a8a" : "#1d4ed8";
+      } else {
+        color = layer === 1 ? biome.mountain : layer === 2 ? biome.groundB : biome.groundA;
+      }
+      
+      ctx.fillStyle = color;
+      
+      // Left Cliff
+      ctx.beginPath();
+      ctx.moveTo(0, -this.height); // Start way above to cover scrolling
+      for (let y = -this.height; y <= this.height * 2; y += 40) {
+        const worldY = y + layerOffset;
+        const noise = Math.sin(worldY * 0.01) * 15 + Math.cos(worldY * 0.03) * 10;
+        // The y coordinate must wrap smoothly or just draw a large enough segment. 
+        // A better approach is modulo-ing worldY but keeping noise continuous.
+        const localY = y;
+        ctx.lineTo(cliffWidth + noise, (localY + layerOffset) % (this.height * 2) - this.height);
+      }
+      ctx.lineTo(0, this.height * 2);
+      ctx.fill();
+
+      // Right Cliff
+      ctx.beginPath();
+      ctx.moveTo(this.width, -this.height);
+      for (let y = -this.height; y <= this.height * 2; y += 40) {
+        const worldY = y + layerOffset;
+        const noise = Math.sin(worldY * 0.012 + 100) * 15 + Math.cos(worldY * 0.025 + 50) * 10;
+        ctx.lineTo(this.width - cliffWidth - noise, (y + layerOffset) % (this.height * 2) - this.height);
+      }
+      ctx.lineTo(this.width, this.height * 2);
+      ctx.fill();
     }
+    
+    // Cliff Fog (Atmospheric depth)
+    const fog = ctx.createLinearGradient(0, 0, baseWidth + 20, 0);
+    fog.addColorStop(0, "rgba(0,0,0,0.5)");
+    fog.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = fog;
+    ctx.fillRect(0, 0, baseWidth + 20, this.height);
+
+    const rightFog = ctx.createLinearGradient(this.width, 0, this.width - baseWidth - 20, 0);
+    rightFog.addColorStop(0, "rgba(0,0,0,0.5)");
+    rightFog.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = rightFog;
+    ctx.fillRect(this.width - baseWidth - 20, 0, baseWidth + 20, this.height);
+    
     ctx.restore();
   }
 
   drawSideDecor(ctx, biome, vOffset) {
-    const cliffWidth = Math.max(60, this.width * 0.12);
-    const spacing = 800;
+    const baseWidth = Math.max(90, this.width * 0.18);
+    const cliffWidth = baseWidth - 25; // middle layer width
+    const spacing = 350;
     
-    for (let i = -1; i <= Math.ceil(this.height/spacing); i++) {
-        const y = ((i * spacing + vOffset) % (this.height + spacing)) - spacing/2;
-        const side = i % 2 === 0 ? cliffWidth - 5 : this.width - cliffWidth + 5;
-        const flip = i % 2 === 0 ? 1 : -1;
+    const isOcean = this.worldY < 3000;
+    const isSpace = this.worldY > 8000;
+    
+    for (let i = -1; i <= Math.ceil(this.height/spacing) + 1; i++) {
+        const yRaw = (i * spacing + vOffset * 0.9);
+        const y = yRaw % (this.height + spacing) - spacing / 2;
+        
+        const isLeft = (Math.abs(Math.floor(yRaw / spacing)) % 2) === 0;
+        const side = isLeft ? cliffWidth - 5 : this.width - cliffWidth + 5;
+        const flip = isLeft ? 1 : -1;
         
         ctx.save();
         ctx.translate(side, y);
         
-        if (biome.type === "ocean") {
-            // Corals/Seaweed
-            ctx.fillStyle = biome.accent;
-            ctx.fillRect(0, -20, 15 * flip, 40);
-        } else if (biome.architecture === "cyber") {
-            // Neon panels
-            ctx.fillStyle = biome.accent;
-            ctx.globalAlpha = 0.6 + Math.sin(this.elapsed * 2 + i) * 0.3;
-            ctx.fillRect(0, -50, 4 * flip, 100);
-        } else if (biome.architecture === "pyramids") {
-            // Ancient blocks
-            ctx.fillStyle = biome.groundC;
-            ctx.fillRect(0, -40, 20 * flip, 80);
-        } else {
-            // Trees/Greenery
-            ctx.fillStyle = biome.forestA;
+        if (isSpace) {
+            // Sci-fi neon modules
+            ctx.fillStyle = "#3b82f6";
+            ctx.shadowColor = "#60a5fa";
+            ctx.shadowBlur = 15;
+            ctx.globalAlpha = 0.8 + Math.sin(this.elapsed * 3 + i) * 0.2;
+            ctx.fillRect(0, -30, 25 * flip, 60);
+            ctx.fillStyle = "#fff";
+            ctx.fillRect(5 * flip, -15, 10 * flip, 30);
+        } else if (isOcean) {
+            // Glowing Corals
+            ctx.fillStyle = "#f472b6";
+            ctx.shadowColor = "#f9a8d4";
+            ctx.shadowBlur = 10;
             ctx.beginPath();
             ctx.moveTo(0, 0);
-            ctx.lineTo(30 * flip, -30);
-            ctx.lineTo(30 * flip, 30);
+            ctx.quadraticCurveTo(30 * flip, -40 + Math.sin(this.elapsed*2+i)*15, 40 * flip, -20);
+            ctx.quadraticCurveTo(20 * flip, -10, 0, 20);
+            ctx.fill();
+            ctx.fillStyle = "#34d399";
+            ctx.beginPath();
+            ctx.moveTo(0, 10);
+            ctx.quadraticCurveTo(20 * flip, 0, 25 * flip, 30);
+            ctx.fill();
+        } else if (biome.architecture === "cyber") {
+            ctx.fillStyle = biome.accent;
+            ctx.globalAlpha = 0.6 + Math.sin(this.elapsed * 2 + i) * 0.3;
+            ctx.fillRect(0, -50, 8 * flip, 100);
+            ctx.fillStyle = "#fff";
+            ctx.fillRect(0, -20, 12 * flip, 10);
+        } else if (biome.architecture === "pyramids") {
+            ctx.fillStyle = biome.groundC;
+            ctx.fillRect(0, -40, 30 * flip, 80);
+            ctx.fillStyle = "#22c55e"; // Vines
+            ctx.fillRect(0, -40, 10 * flip, 100);
+            ctx.fillRect(10 * flip, -10, 5 * flip, 60);
+        } else {
+            // Lush Trees
+            ctx.fillStyle = biome.forestA || "#166534";
+            ctx.beginPath();
+            ctx.moveTo(0, -10);
+            ctx.lineTo(40 * flip, -40);
+            ctx.lineTo(30 * flip, 10);
+            ctx.lineTo(45 * flip, 0);
+            ctx.lineTo(25 * flip, 40);
+            ctx.lineTo(0, 30);
+            ctx.closePath();
+            ctx.fill();
+            
+            // Tree highlight
+            ctx.fillStyle = biome.forestB || "#22c55e";
+            ctx.beginPath();
+            ctx.moveTo(0, -5);
+            ctx.lineTo(25 * flip, -25);
+            ctx.lineTo(15 * flip, 5);
             ctx.closePath();
             ctx.fill();
         }
