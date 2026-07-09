@@ -500,6 +500,7 @@ class SkyboundGame {
       // Prime spawn cursor after initial stack
       this.verticalSpawnCursor = initialCount * spacing;
       this.nextVerticalSpawnAt = this.verticalSpawnCursor + 520;
+      this.lastVerticalSpawnY = this.height * 0.62 - (initialCount - 1) * spacing;
     } else {
       this.player.x = this.width * 0.5;
       this.player.y = this.height * 0.42;
@@ -994,224 +995,236 @@ class SkyboundGame {
 
   drawBackground(ctx) {
     const biome = this.getActiveBiome();
-    let bgTop, bgMid, bgBot;
 
     if (this.gameMode === "vertical") {
-      // Altitude-based transition: Deep Ocean -> Sky -> Space
-      // worldY increases as we go up. Let's normalize it.
-      const altitude = this.worldY;
-      
-      if (altitude < 3000) {
-        // Deep Ocean
-        const t = Math.max(0, altitude / 3000);
-        bgTop = this.mixColor("#020617", "#1e3a8a", t);
-        bgMid = this.mixColor("#0f172a", "#3b82f6", t);
-        bgBot = this.mixColor("#1e3a8a", "#60a5fa", t);
-      } else if (altitude < 8000) {
-        // Sky transition
-        const t = (altitude - 3000) / 5000;
-        bgTop = this.mixColor("#1e3a8a", "#0c0a09", t);
-        bgMid = this.mixColor("#3b82f6", "#1c1917", t);
-        bgBot = this.mixColor("#60a5fa", "#44403c", t);
-      } else {
-        // Deep Space
-        bgTop = "#020617";
-        bgMid = "#000000";
-        bgBot = "#111827";
-      }
-    } else {
-      bgTop = biome.skyTop;
-      bgMid = biome.skyMid;
-      bgBot = biome.skyBottom;
+      this.drawVerticalBackground(ctx, biome);
+      return;
     }
 
     const sky = ctx.createLinearGradient(0, 0, 0, this.height);
-    sky.addColorStop(0, bgTop);
-    sky.addColorStop(0.5, bgMid);
-    sky.addColorStop(1, bgBot);
+    sky.addColorStop(0, biome.skyTop);
+    sky.addColorStop(0.5, biome.skyMid);
+    sky.addColorStop(1, biome.skyBottom);
     ctx.fillStyle = sky;
     ctx.fillRect(0, 0, this.width, this.height);
 
-    if (this.gameMode !== "vertical") {
-      this.drawBiomeAtmosphere(ctx, biome);
-      this.clouds.forEach((cloud) => this.drawCloud(ctx, cloud, biome));
-      this.drawRollingHills(ctx, biome, "far");
-      this.drawUniqueArchitecture(ctx, biome);
-      this.drawMountains(ctx, biome);
-      this.drawRollingHills(ctx, biome, "near");
-      this.drawForest(ctx, biome);
-    } else {
-      // Altitude-based scenery
-      this.drawGodRays(ctx);
-      this.drawVerticalScenery(ctx, biome);
-      if (this.worldY < 4000) this.drawOceanBubbles(ctx);
-      if (this.worldY > 9000) this.drawStars(ctx);
-    }
+    this.drawBiomeAtmosphere(ctx, biome);
+    this.clouds.forEach((cloud) => this.drawCloud(ctx, cloud, biome));
+    this.drawRollingHills(ctx, biome, "far");
+    this.drawUniqueArchitecture(ctx, biome);
+    this.drawMountains(ctx, biome);
+    this.drawRollingHills(ctx, biome, "near");
+    this.drawForest(ctx, biome);
   }
 
-  drawVerticalScenery(ctx, biome) {
+  drawVerticalBackground(ctx, biome) {
+    const palette = this.getVerticalPalette();
+    const sky = ctx.createLinearGradient(0, 0, 0, this.height);
+    sky.addColorStop(0, palette.top);
+    sky.addColorStop(0.42, palette.mid);
+    sky.addColorStop(1, palette.bottom);
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, this.width, this.height);
+
+    this.drawVerticalAtmosphere(ctx, palette);
+    this.drawVerticalScenery(ctx, biome, palette);
+    this.drawVerticalAirGrain(ctx, palette);
+  }
+
+  getVerticalPalette() {
+    const altitude = Math.max(0, this.worldY || 0);
+    const blend = (from, to, t) => this.mixColor(from, to, Math.max(0, Math.min(1, t)));
+
+    if (altitude < 2600) {
+      const t = altitude / 2600;
+      return {
+        stage: "reef",
+        top: blend("#03243c", "#0a5d8f", t),
+        mid: blend("#07506d", "#1597ba", t),
+        bottom: blend("#0a2647", "#75d8df", t),
+        glow: blend("rgba(72, 214, 214, 0.28)", "rgba(248, 223, 149, 0.24)", t),
+        haze: "rgba(145, 231, 232, 0.2)",
+        accent: "#7af3d8"
+      };
+    }
+
+    if (altitude < 7200) {
+      const t = (altitude - 2600) / 4600;
+      return {
+        stage: "cloud",
+        top: blend("#3bb2f3", "#183f75", t),
+        mid: blend("#87dfff", "#91b7dd", t),
+        bottom: blend("#ffe2a3", "#eaa86c", t),
+        glow: blend("rgba(255, 239, 181, 0.38)", "rgba(255, 173, 97, 0.26)", t),
+        haze: "rgba(255, 255, 255, 0.22)",
+        accent: "#ffd166"
+      };
+    }
+
+    if (altitude < 11200) {
+      const t = (altitude - 7200) / 4000;
+      return {
+        stage: "strato",
+        top: blend("#101a3f", "#050816", t),
+        mid: blend("#283f76", "#10122c", t),
+        bottom: blend("#b67a69", "#2d315e", t),
+        glow: blend("rgba(255, 179, 96, 0.3)", "rgba(126, 199, 255, 0.14)", t),
+        haze: "rgba(122, 180, 255, 0.16)",
+        accent: "#a7c7ff"
+      };
+    }
+
+    return {
+      stage: "space",
+      top: "#01030d",
+      mid: "#06091b",
+      bottom: "#101736",
+      glow: "rgba(124, 155, 255, 0.16)",
+      haze: "rgba(100, 160, 255, 0.1)",
+      accent: "#9db7ff"
+    };
+  }
+
+  drawVerticalScenery(ctx, biome, palette = this.getVerticalPalette()) {
     const vOffset = this.worldY;
-    
-    // Altitude-based floating islands
-    if (this.worldY > 4000 && this.worldY < 10000) {
-      this.drawFloatingIslands(ctx);
+
+    if (palette.stage === "reef") {
+      this.drawVerticalCaustics(ctx);
+      this.drawOceanBubbles(ctx);
     }
-    
-    // Draw Atmosphere/Clouds
-    this.drawVerticalClouds(ctx);
-    
-    // Side Cliffs (Mountains adaptive to biomes with parallax)
-    this.drawSideCliffs(ctx, biome, vOffset);
-    
-    // Forest/Architecture/Corals on cliffs
-    this.drawSideDecor(ctx, biome, vOffset);
+
+    if (palette.stage === "strato" || palette.stage === "space") {
+      this.drawStars(ctx, palette);
+      this.drawDistantPlanets(ctx, palette);
+    }
+
+    if (palette.stage === "cloud" || palette.stage === "strato") {
+      this.drawFloatingIslands(ctx, palette);
+    }
+
+    this.drawVerticalClouds(ctx, palette);
+    this.drawSideCliffs(ctx, biome, vOffset, palette);
+    this.drawSideDecor(ctx, biome, vOffset, palette);
   }
 
-  drawSideCliffs(ctx, biome, vOffset) {
+  drawSideCliffs(ctx, biome, vOffset, palette = this.getVerticalPalette()) {
     ctx.save();
-    const baseWidth = Math.max(90, this.width * 0.18);
-    
-    const isOcean = this.worldY < 3000;
-    const isSpace = this.worldY > 8000;
-    
-    // 3 layers of parallax cliffs
-    for (let layer = 3; layer >= 1; layer--) {
-      const speed = 0.3 + layer * 0.2;
-      const layerOffset = vOffset * speed;
-      const cliffWidth = baseWidth - (3 - layer) * 25;
-      
-      let color;
-      if (isSpace) {
-        color = layer === 1 ? "#111827" : layer === 2 ? "#1f2937" : "#374151";
-      } else if (isOcean) {
-        color = layer === 1 ? "#0f172a" : layer === 2 ? "#1e3a8a" : "#1d4ed8";
-      } else {
-        color = layer === 1 ? biome.mountain : layer === 2 ? biome.groundB : biome.groundA;
-      }
-      
-      ctx.fillStyle = color;
-      
-      // Left Cliff
-      ctx.beginPath();
-      ctx.moveTo(0, -this.height); // Start way above to cover scrolling
-      for (let y = -this.height; y <= this.height * 2; y += 40) {
-        const worldY = y + layerOffset;
-        const noise = Math.sin(worldY * 0.01) * 15 + Math.cos(worldY * 0.03) * 10;
-        // The y coordinate must wrap smoothly or just draw a large enough segment. 
-        // A better approach is modulo-ing worldY but keeping noise continuous.
-        const localY = y;
-        ctx.lineTo(cliffWidth + noise, (localY + layerOffset) % (this.height * 2) - this.height);
-      }
-      ctx.lineTo(0, this.height * 2);
-      ctx.fill();
+    const baseWidth = Math.max(82, Math.min(190, this.width * 0.2));
 
-      // Right Cliff
-      ctx.beginPath();
-      ctx.moveTo(this.width, -this.height);
-      for (let y = -this.height; y <= this.height * 2; y += 40) {
-        const worldY = y + layerOffset;
-        const noise = Math.sin(worldY * 0.012 + 100) * 15 + Math.cos(worldY * 0.025 + 50) * 10;
-        ctx.lineTo(this.width - cliffWidth - noise, (y + layerOffset) % (this.height * 2) - this.height);
-      }
-      ctx.lineTo(this.width, this.height * 2);
-      ctx.fill();
+    for (let layer = 4; layer >= 1; layer--) {
+      const speed = 0.24 + layer * 0.16;
+      const layerOffset = vOffset * speed;
+      const width = baseWidth + (4 - layer) * 18;
+      const alpha = 0.18 + layer * 0.14;
+
+      const leftGrad = ctx.createLinearGradient(0, 0, width + 44, 0);
+      leftGrad.addColorStop(0, this.getVerticalRockColor(biome, palette, layer, alpha + 0.12));
+      leftGrad.addColorStop(1, this.getVerticalRockColor(biome, palette, layer, alpha * 0.35));
+      this.drawVerticalCliffShape(ctx, "left", width, layerOffset, leftGrad, layer, palette);
+
+      const rightGrad = ctx.createLinearGradient(this.width, 0, this.width - width - 44, 0);
+      rightGrad.addColorStop(0, this.getVerticalRockColor(biome, palette, layer, alpha + 0.1));
+      rightGrad.addColorStop(1, this.getVerticalRockColor(biome, palette, layer, alpha * 0.32));
+      this.drawVerticalCliffShape(ctx, "right", width, layerOffset + 140, rightGrad, layer, palette);
     }
-    
-    // Cliff Fog (Atmospheric depth)
+
     const fog = ctx.createLinearGradient(0, 0, baseWidth + 20, 0);
-    fog.addColorStop(0, "rgba(0,0,0,0.5)");
-    fog.addColorStop(1, "rgba(0,0,0,0)");
+    fog.addColorStop(0, palette.stage === "reef" ? "rgba(1, 20, 30, 0.42)" : "rgba(0, 0, 0, 0.32)");
+    fog.addColorStop(1, "rgba(0, 0, 0, 0)");
     ctx.fillStyle = fog;
     ctx.fillRect(0, 0, baseWidth + 20, this.height);
 
     const rightFog = ctx.createLinearGradient(this.width, 0, this.width - baseWidth - 20, 0);
-    rightFog.addColorStop(0, "rgba(0,0,0,0.5)");
-    rightFog.addColorStop(1, "rgba(0,0,0,0)");
+    rightFog.addColorStop(0, palette.stage === "reef" ? "rgba(1, 20, 30, 0.42)" : "rgba(0, 0, 0, 0.32)");
+    rightFog.addColorStop(1, "rgba(0, 0, 0, 0)");
     ctx.fillStyle = rightFog;
     ctx.fillRect(this.width - baseWidth - 20, 0, baseWidth + 20, this.height);
-    
+
     ctx.restore();
   }
 
-  drawSideDecor(ctx, biome, vOffset) {
-    const baseWidth = Math.max(90, this.width * 0.18);
-    const cliffWidth = baseWidth - 25; // middle layer width
-    const spacing = 350;
-    
-    const isOcean = this.worldY < 3000;
-    const isSpace = this.worldY > 8000;
-    
-    for (let i = -1; i <= Math.ceil(this.height/spacing) + 1; i++) {
-        const yRaw = (i * spacing + vOffset * 0.9);
-        const y = yRaw % (this.height + spacing) - spacing / 2;
-        
-        const isLeft = (Math.abs(Math.floor(yRaw / spacing)) % 2) === 0;
-        const side = isLeft ? cliffWidth - 5 : this.width - cliffWidth + 5;
-        const flip = isLeft ? 1 : -1;
-        
-        ctx.save();
-        ctx.translate(side, y);
-        
-        if (isSpace) {
-            // Sci-fi neon modules
-            ctx.fillStyle = "#3b82f6";
-            ctx.shadowColor = "#60a5fa";
-            ctx.shadowBlur = 15;
-            ctx.globalAlpha = 0.8 + Math.sin(this.elapsed * 3 + i) * 0.2;
-            ctx.fillRect(0, -30, 25 * flip, 60);
-            ctx.fillStyle = "#fff";
-            ctx.fillRect(5 * flip, -15, 10 * flip, 30);
-        } else if (isOcean) {
-            // Glowing Corals
-            ctx.fillStyle = "#f472b6";
-            ctx.shadowColor = "#f9a8d4";
-            ctx.shadowBlur = 10;
-            ctx.beginPath();
-            ctx.moveTo(0, 0);
-            ctx.quadraticCurveTo(30 * flip, -40 + Math.sin(this.elapsed*2+i)*15, 40 * flip, -20);
-            ctx.quadraticCurveTo(20 * flip, -10, 0, 20);
-            ctx.fill();
-            ctx.fillStyle = "#34d399";
-            ctx.beginPath();
-            ctx.moveTo(0, 10);
-            ctx.quadraticCurveTo(20 * flip, 0, 25 * flip, 30);
-            ctx.fill();
-        } else if (biome.architecture === "cyber") {
-            ctx.fillStyle = biome.accent;
-            ctx.globalAlpha = 0.6 + Math.sin(this.elapsed * 2 + i) * 0.3;
-            ctx.fillRect(0, -50, 8 * flip, 100);
-            ctx.fillStyle = "#fff";
-            ctx.fillRect(0, -20, 12 * flip, 10);
-        } else if (biome.architecture === "pyramids") {
-            ctx.fillStyle = biome.groundC;
-            ctx.fillRect(0, -40, 30 * flip, 80);
-            ctx.fillStyle = "#22c55e"; // Vines
-            ctx.fillRect(0, -40, 10 * flip, 100);
-            ctx.fillRect(10 * flip, -10, 5 * flip, 60);
-        } else {
-            // Lush Trees
-            ctx.fillStyle = biome.forestA || "#166534";
-            ctx.beginPath();
-            ctx.moveTo(0, -10);
-            ctx.lineTo(40 * flip, -40);
-            ctx.lineTo(30 * flip, 10);
-            ctx.lineTo(45 * flip, 0);
-            ctx.lineTo(25 * flip, 40);
-            ctx.lineTo(0, 30);
-            ctx.closePath();
-            ctx.fill();
-            
-            // Tree highlight
-            ctx.fillStyle = biome.forestB || "#22c55e";
-            ctx.beginPath();
-            ctx.moveTo(0, -5);
-            ctx.lineTo(25 * flip, -25);
-            ctx.lineTo(15 * flip, 5);
-            ctx.closePath();
-            ctx.fill();
-        }
-        
-        ctx.restore();
+  drawVerticalCliffShape(ctx, side, width, offset, fill, layer, palette) {
+    const left = side === "left";
+    const loop = this.height + 360;
+    ctx.save();
+    ctx.fillStyle = fill;
+    ctx.beginPath();
+    ctx.moveTo(left ? 0 : this.width, -80);
+
+    for (let y = -160; y <= this.height + 220; y += 28) {
+      const world = y + offset;
+      const ridge =
+        Math.sin(world * 0.008 + layer * 1.7) * (16 + layer * 5) +
+        Math.cos(world * 0.021 + layer * 0.8) * (7 + layer * 2) +
+        Math.sin(world * 0.041) * 4;
+      const seam = ((world % loop) + loop) % loop;
+      const notch = Math.sin(seam * 0.024 + layer) * 8;
+      const edge = width + ridge + notch;
+      ctx.lineTo(left ? edge : this.width - edge, y);
+    }
+
+    ctx.lineTo(left ? 0 : this.width, this.height + 220);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.globalAlpha = palette.stage === "space" ? 0.24 : 0.34;
+    ctx.strokeStyle = palette.stage === "reef" ? "rgba(154, 237, 224, 0.36)" : "rgba(255, 255, 255, 0.18)";
+    ctx.lineWidth = Math.max(1, 4 - layer * 0.6);
+    for (let y = -120; y < this.height + 180; y += 86) {
+      const world = y + offset;
+      const edge = width + Math.sin(world * 0.008 + layer * 1.7) * (16 + layer * 5);
+      const x = left ? edge - 12 : this.width - edge + 12;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.quadraticCurveTo(x + (left ? -18 : 18), y + 34, x + (left ? 8 : -8), y + 72);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  getVerticalRockColor(biome, palette, layer, alpha) {
+    if (palette.stage === "space") {
+      const shades = ["#0b1020", "#121a31", "#1c2944", "#2d3d62"];
+      return this.hexToRgba(shades[layer - 1] || "#18223a", alpha);
+    }
+    if (palette.stage === "reef") {
+      const shades = ["#063447", "#075a6f", "#0f7f8d", "#1aa3a4"];
+      return this.hexToRgba(shades[layer - 1] || "#075a6f", alpha);
+    }
+    if (palette.stage === "strato") {
+      const shades = ["#202341", "#3c416d", "#6d597a", "#a86f68"];
+      return this.hexToRgba(shades[layer - 1] || "#3c416d", alpha);
+    }
+    const color = layer <= 2 ? biome.mountain : (layer === 3 ? biome.groundB : biome.groundA);
+    return color.startsWith("rgba") ? color : this.hexToRgba(color, alpha);
+  }
+
+  drawSideDecor(ctx, biome, vOffset, palette = this.getVerticalPalette()) {
+    const baseWidth = Math.max(82, Math.min(190, this.width * 0.2));
+    const cliffWidth = baseWidth - 10;
+    const spacing = palette.stage === "space" ? 430 : 310;
+
+    for (let i = -2; i <= Math.ceil(this.height / spacing) + 2; i++) {
+      const yRaw = i * spacing + vOffset * 0.88;
+      const y = ((yRaw % (this.height + spacing)) + this.height + spacing) % (this.height + spacing) - spacing * 0.55;
+      const index = Math.floor(yRaw / spacing);
+      const isLeft = Math.abs(index) % 2 === 0;
+      const side = isLeft ? cliffWidth : this.width - cliffWidth;
+      const flip = isLeft ? 1 : -1;
+
+      ctx.save();
+      ctx.translate(side, y);
+
+      if (palette.stage === "space") {
+        this.drawVerticalSpaceModule(ctx, flip, i, palette);
+      } else if (palette.stage === "reef") {
+        this.drawVerticalCoral(ctx, flip, i);
+      } else if (palette.stage === "strato") {
+        this.drawVerticalBeacon(ctx, flip, i, palette);
+      } else {
+        this.drawVerticalLushGrowth(ctx, flip, i, biome);
+      }
+      ctx.restore();
     }
   }
 
@@ -1239,41 +1252,114 @@ class SkyboundGame {
     ctx.restore();
   }
 
-  drawFloatingIslands(ctx) {
+  drawVerticalAtmosphere(ctx, palette) {
     ctx.save();
-    for (let i = 0; i < 4; i++) {
-      const off = i * 2000;
-      const y = ((this.worldY * 0.4 + off) % (this.height + 1000)) - 500;
-      const x = (Math.sin(i * 123.45) * 0.4 + 0.5) * this.width;
-      const scale = 0.8 + (i % 3) * 0.2;
-      
-      ctx.save();
-      ctx.translate(x, this.height - y);
-      ctx.scale(scale, scale);
-      
-      // Island base
-      ctx.fillStyle = "#4b3621";
+    const sunX = this.width * (palette.stage === "reef" ? 0.25 : 0.72);
+    const sunY = this.height * (palette.stage === "space" ? 0.2 : 0.12);
+    const glow = ctx.createRadialGradient(sunX, sunY, 0, sunX, sunY, Math.max(this.width, this.height) * 0.72);
+    glow.addColorStop(0, palette.glow);
+    glow.addColorStop(0.42, palette.haze);
+    glow.addColorStop(1, "rgba(255, 255, 255, 0)");
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, this.width, this.height);
+
+    if (palette.stage !== "space") {
+      this.drawGodRays(ctx);
+    } else {
+      const band = ctx.createLinearGradient(0, this.height * 0.2, this.width, this.height * 0.8);
+      band.addColorStop(0, "rgba(58, 99, 190, 0)");
+      band.addColorStop(0.44, "rgba(89, 124, 231, 0.16)");
+      band.addColorStop(0.56, "rgba(244, 170, 255, 0.11)");
+      band.addColorStop(1, "rgba(58, 99, 190, 0)");
+      ctx.fillStyle = band;
       ctx.beginPath();
-      ctx.moveTo(-60, 0);
-      ctx.lineTo(60, 0);
-      ctx.lineTo(0, 80);
+      ctx.moveTo(0, this.height * 0.34);
+      for (let x = 0; x <= this.width; x += 64) {
+        ctx.lineTo(x, this.height * (0.34 + Math.sin(this.elapsed * 0.28 + x * 0.012) * 0.055));
+      }
+      ctx.lineTo(this.width, this.height * 0.62);
+      ctx.lineTo(0, this.height * 0.72);
       ctx.closePath();
       ctx.fill();
-      
-      // Grass top
-      ctx.fillStyle = "#228b22";
+    }
+    ctx.restore();
+  }
+
+  drawVerticalCaustics(ctx) {
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    ctx.lineWidth = 1.2;
+    for (let i = 0; i < 11; i += 1) {
+      const y = ((i * 82 + this.worldY * 0.18 + Math.sin(this.elapsed + i) * 18) % (this.height + 120)) - 60;
+      const alpha = 0.05 + (i % 3) * 0.018;
+      ctx.strokeStyle = `rgba(169, 255, 236, ${alpha})`;
       ctx.beginPath();
-      ctx.ellipse(0, 0, 70, 20, 0, 0, Math.PI * 2);
-      ctx.fill();
-      
-      // Little tree
-      ctx.fillStyle = "#1a472a";
+      for (let x = -40; x <= this.width + 40; x += 40) {
+        const wave = Math.sin(x * 0.024 + this.elapsed * 1.3 + i) * 12;
+        if (x === -40) ctx.moveTo(x, y + wave);
+        else ctx.quadraticCurveTo(x - 20, y - wave * 0.5, x, y + wave);
+      }
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  drawFloatingIslands(ctx, palette = this.getVerticalPalette()) {
+    ctx.save();
+    for (let i = 0; i < 5; i++) {
+      const off = i * 2000;
+      const y = ((this.worldY * 0.36 + off) % (this.height + 1200)) - 520;
+      const x = (Math.sin(i * 123.45) * 0.32 + 0.5) * this.width;
+      const scale = 0.62 + (i % 3) * 0.2;
+
+      ctx.save();
+      ctx.translate(x, this.height - y + Math.sin(this.elapsed * 0.7 + i) * 8);
+      ctx.scale(scale, scale);
+
+      ctx.fillStyle = "rgba(0, 0, 0, 0.16)";
       ctx.beginPath();
-      ctx.moveTo(-10, -5);
-      ctx.lineTo(0, -40);
-      ctx.lineTo(10, -5);
+      ctx.ellipse(0, 42, 92, 18, 0, 0, Math.PI * 2);
       ctx.fill();
-      
+
+      const rock = ctx.createLinearGradient(0, -8, 0, 96);
+      rock.addColorStop(0, "#68523b");
+      rock.addColorStop(0.55, "#3c2b23");
+      rock.addColorStop(1, "#1a1518");
+      ctx.fillStyle = rock;
+      ctx.beginPath();
+      ctx.moveTo(-86, -2);
+      ctx.bezierCurveTo(-48, 18, -34, 74, 0, 104);
+      ctx.bezierCurveTo(38, 74, 62, 24, 86, -2);
+      ctx.closePath();
+      ctx.fill();
+
+      const grass = ctx.createLinearGradient(0, -22, 0, 12);
+      grass.addColorStop(0, palette.stage === "strato" ? "#c9a66a" : "#80d65a");
+      grass.addColorStop(1, palette.stage === "strato" ? "#8b6e45" : "#2f8f45");
+      ctx.fillStyle = grass;
+      ctx.beginPath();
+      ctx.ellipse(0, -4, 96, 24, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.18)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(-32, 14);
+      ctx.lineTo(-12, 54);
+      ctx.moveTo(28, 12);
+      ctx.lineTo(8, 64);
+      ctx.stroke();
+
+      if (palette.stage !== "strato") {
+        ctx.fillStyle = "#1c623b";
+        ctx.fillRect(-5, -38, 8, 34);
+        ctx.fillStyle = "#2f9c57";
+        ctx.beginPath();
+        ctx.arc(-12, -42, 17, 0, Math.PI * 2);
+        ctx.arc(8, -50, 20, 0, Math.PI * 2);
+        ctx.arc(22, -36, 15, 0, Math.PI * 2);
+        ctx.fill();
+      }
       ctx.restore();
     }
     ctx.restore();
@@ -1312,14 +1398,15 @@ class SkyboundGame {
     ctx.restore();
   }
 
-  drawStars(ctx) {
+  drawStars(ctx, palette = this.getVerticalPalette()) {
     ctx.save();
-    for (let i = 0; i < 60; i++) {
+    const visible = palette.stage === "space" ? 1 : 0.45;
+    for (let i = 0; i < 100; i++) {
       const x = (Math.sin(i * 123.45) * 0.5 + 0.5) * this.width;
-      const y = (Math.cos(i * 456.78) * 0.5 + 0.5) * this.height;
-      const size = (Math.sin(this.elapsed * 1.5 + i) * 0.5 + 0.5) * 1.8;
-      const alpha = 0.2 + Math.sin(this.elapsed + i) * 0.4;
-      
+      const y = ((Math.cos(i * 456.78) * 0.5 + 0.5) * this.height + this.worldY * (0.018 + (i % 5) * 0.004)) % this.height;
+      const size = 0.5 + (Math.sin(this.elapsed * 1.5 + i) * 0.5 + 0.5) * 1.9;
+      const alpha = (0.18 + Math.sin(this.elapsed + i) * 0.32 + (i % 7 === 0 ? 0.25 : 0)) * visible;
+
       ctx.fillStyle = i % 3 === 0 ? "#818cf8" : (i % 2 === 0 ? "#f472b6" : "#fff");
       ctx.globalAlpha = Math.max(0, alpha);
       ctx.beginPath();
@@ -1329,44 +1416,177 @@ class SkyboundGame {
     ctx.restore();
   }
 
+  drawDistantPlanets(ctx, palette) {
+    if (palette.stage !== "space") return;
+    ctx.save();
+    const x = this.width * 0.78;
+    const y = this.height * 0.18 + Math.sin(this.elapsed * 0.08) * 10;
+    const radius = Math.min(58, this.width * 0.12);
+    const glow = ctx.createRadialGradient(x, y, radius * 0.2, x, y, radius * 3);
+    glow.addColorStop(0, "rgba(128, 162, 255, 0.16)");
+    glow.addColorStop(1, "rgba(128, 162, 255, 0)");
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(x, y, radius * 3, 0, Math.PI * 2);
+    ctx.fill();
+
+    const planet = ctx.createRadialGradient(x - radius * 0.34, y - radius * 0.4, radius * 0.1, x, y, radius);
+    planet.addColorStop(0, "#e8f0ff");
+    planet.addColorStop(0.5, "#6881d6");
+    planet.addColorStop(1, "#1a2556");
+    ctx.fillStyle = planet;
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(223, 232, 255, 0.32)";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.ellipse(x, y + radius * 0.12, radius * 1.75, radius * 0.36, -0.24, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
   drawOceanBubbles(ctx) {
     ctx.save();
-    for (let i = 0; i < 25; i++) {
+    for (let i = 0; i < 36; i++) {
       const x = (Math.sin(i * 88.8) * 0.5 + 0.5) * this.width;
-      const y = ((i * 120 - this.worldY * 0.4) % (this.height + 240)) + 120;
-      const r = 4 + (i % 12);
-      
-      const grad = ctx.createRadialGradient(x - r*0.3, y - r*0.3, 1, x, y, r);
-      grad.addColorStop(0, "rgba(255, 255, 255, 0.4)");
-      grad.addColorStop(1, "rgba(255, 255, 255, 0.05)");
-      
-      ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
+      const drift = Math.sin(this.elapsed * 0.8 + i) * 18;
+      const y = ((i * 104 - this.worldY * 0.42 + this.elapsed * (16 + i % 6)) % (this.height + 260)) - 80;
+      const r = 3 + (i % 11);
+
+      const grad = ctx.createRadialGradient(x + drift - r * 0.3, y - r * 0.3, 1, x + drift, y, r);
+      grad.addColorStop(0, "rgba(255, 255, 255, 0.44)");
+      grad.addColorStop(1, "rgba(255, 255, 255, 0.04)");
+
+      ctx.strokeStyle = "rgba(202, 255, 245, 0.28)";
       ctx.fillStyle = grad;
       ctx.lineWidth = 1.5;
       ctx.beginPath();
-      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.arc(x + drift, y, r, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
     }
     ctx.restore();
   }
 
-  drawVerticalClouds(ctx) {
+  drawVerticalClouds(ctx, palette = this.getVerticalPalette()) {
     ctx.save();
-    for (let i = 0; i < 12; i++) {
+    const cloudCount = palette.stage === "reef" ? 6 : (palette.stage === "space" ? 3 : 14);
+    for (let i = 0; i < cloudCount; i++) {
       const x = (Math.sin(i * 99.9) * 0.5 + 0.5) * this.width;
-      const y = ((i * 350 - this.worldY * 0.7) % (this.height + 500)) + 250;
-      const w = 120 + i * 25;
-      const h = 35 + i * 8;
-      
+      const y = ((i * 310 - this.worldY * (palette.stage === "space" ? 0.16 : 0.62)) % (this.height + 520)) + 220;
+      const w = 110 + (i % 5) * 36 + this.width * 0.05;
+      const h = 26 + (i % 4) * 9;
+
+      const alpha = palette.stage === "reef" ? 0.055 : (palette.stage === "space" ? 0.045 : 0.16);
       const grad = ctx.createLinearGradient(x - w, y, x + w, y);
       grad.addColorStop(0, "rgba(255, 255, 255, 0)");
-      grad.addColorStop(0.5, "rgba(255, 255, 255, 0.12)");
+      grad.addColorStop(0.48, `rgba(255, 255, 255, ${alpha})`);
       grad.addColorStop(1, "rgba(255, 255, 255, 0)");
-      
+
       ctx.fillStyle = grad;
       ctx.beginPath();
       ctx.ellipse(x, y, w, h, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      if (palette.stage === "cloud") {
+        ctx.fillStyle = "rgba(255, 245, 222, 0.11)";
+        ctx.beginPath();
+        ctx.arc(x - w * 0.22, y - h * 0.34, h * 1.05, 0, Math.PI * 2);
+        ctx.arc(x + w * 0.05, y - h * 0.45, h * 1.28, 0, Math.PI * 2);
+        ctx.arc(x + w * 0.28, y - h * 0.22, h * 0.94, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
+
+  drawVerticalCoral(ctx, flip, i) {
+    ctx.shadowColor = "#8ff7df";
+    ctx.shadowBlur = 12;
+    const pulse = Math.sin(this.elapsed * 2 + i) * 0.18 + 0.82;
+    ctx.globalAlpha = pulse;
+    ctx.lineCap = "round";
+    ctx.strokeStyle = i % 2 ? "#ff77b7" : "#6ef4d0";
+    ctx.lineWidth = 8;
+    ctx.beginPath();
+    ctx.moveTo(0, 34);
+    ctx.bezierCurveTo(18 * flip, 2, 32 * flip, -28, 18 * flip, -58);
+    ctx.moveTo(9 * flip, -16);
+    ctx.quadraticCurveTo(34 * flip, -22, 45 * flip, -42);
+    ctx.moveTo(12 * flip, 2);
+    ctx.quadraticCurveTo(28 * flip, 20, 42 * flip, 8);
+    ctx.stroke();
+    ctx.fillStyle = "#ffd166";
+    ctx.beginPath();
+    ctx.arc(25 * flip, -62, 5, 0, Math.PI * 2);
+    ctx.arc(48 * flip, -42, 4, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  drawVerticalLushGrowth(ctx, flip, i, biome) {
+    ctx.fillStyle = this.hexToRgba(biome.forestB || "#14532d", 0.85);
+    ctx.beginPath();
+    ctx.moveTo(0, 36);
+    ctx.bezierCurveTo(24 * flip, 18, 28 * flip, -28, 54 * flip, -54);
+    ctx.bezierCurveTo(38 * flip, -30, 48 * flip, 0, 30 * flip, 30);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = this.hexToRgba(biome.forestA || "#22c55e", 0.78);
+    for (let leaf = 0; leaf < 4; leaf++) {
+      const y = -36 + leaf * 22;
+      ctx.beginPath();
+      ctx.ellipse((22 + leaf * 4) * flip, y, 28, 9, -0.5 * flip, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  drawVerticalBeacon(ctx, flip, i, palette) {
+    ctx.shadowColor = palette.accent;
+    ctx.shadowBlur = 14;
+    ctx.fillStyle = "rgba(31, 41, 76, 0.76)";
+    ctx.fillRect(0, -54, 13 * flip, 108);
+    ctx.fillStyle = palette.accent;
+    ctx.globalAlpha = 0.46 + Math.sin(this.elapsed * 2.4 + i) * 0.22;
+    ctx.fillRect(0, -38, 36 * flip, 9);
+    ctx.fillRect(0, 10, 26 * flip, 7);
+  }
+
+  drawVerticalSpaceModule(ctx, flip, i, palette) {
+    ctx.shadowColor = palette.accent;
+    ctx.shadowBlur = 16;
+    ctx.fillStyle = "rgba(16, 24, 48, 0.92)";
+    ctx.fillRect(0, -42, 30 * flip, 84);
+    ctx.fillStyle = "rgba(157, 183, 255, 0.82)";
+    ctx.globalAlpha = 0.68 + Math.sin(this.elapsed * 3 + i) * 0.22;
+    ctx.fillRect(6 * flip, -24, 13 * flip, 48);
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.28)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(30 * flip, -26);
+    ctx.lineTo(54 * flip, -42);
+    ctx.moveTo(30 * flip, 26);
+    ctx.lineTo(54 * flip, 42);
+    ctx.stroke();
+  }
+
+  drawVerticalAirGrain(ctx, palette) {
+    if (!this.effectsEnabled) return;
+    ctx.save();
+    ctx.globalCompositeOperation = palette.stage === "space" ? "lighter" : "screen";
+    const count = palette.stage === "reef" ? 34 : 24;
+    for (let i = 0; i < count; i += 1) {
+      const depth = 0.25 + (i % 7) * 0.11;
+      const x = ((Math.sin(i * 57.21) * 0.5 + 0.5) * this.width + Math.sin(this.elapsed * 0.5 + i) * 18) % this.width;
+      const y = ((i * 73 + this.worldY * depth * 0.12 + this.elapsed * 12) % (this.height + 80)) - 40;
+      const r = palette.stage === "space" ? 0.8 + depth * 1.8 : 1.5 + depth * 3.2;
+      const alpha = palette.stage === "space" ? 0.08 + depth * 0.05 : 0.035 + depth * 0.045;
+      ctx.fillStyle = palette.stage === "reef"
+        ? `rgba(165, 255, 234, ${alpha})`
+        : `rgba(255, 255, 255, ${alpha})`;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
       ctx.fill();
     }
     ctx.restore();
