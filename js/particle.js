@@ -36,11 +36,19 @@ class Particle {
     const alpha = Math.max(0, this.life / this.maxLife);
     ctx.save();
     ctx.globalAlpha = alpha;
-    ctx.fillStyle = this.color;
     if (this.glow) {
-      ctx.shadowColor = this.color;
-      ctx.shadowBlur = this.glow * alpha;
+      // Optimizaton: shadowBlur is very slow on Canvas when called hundreds of times.
+      // Instead, we draw an outer faint circle to simulate glow.
+      ctx.fillStyle = this.color;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.size * alpha + this.glow * 0.5, 0, Math.PI * 2);
+      ctx.globalAlpha = alpha * 0.3;
+      ctx.fill();
     }
+    
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = this.color;
+
     if (this.shape === "feather") {
       ctx.translate(this.x, this.y);
       ctx.rotate(Math.atan2(this.vy, this.vx));
