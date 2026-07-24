@@ -5,6 +5,8 @@ class SkyboundGame {
     this.storage = new GameStorage();
     this.audio = new AudioEngine(this.storage.getSettings());
     this.ui = new GameUI(this.storage, this.audio);
+    this.questManager = new QuestManager(this.storage, this.ui);
+    this.gachaSystem = new GachaSystem(this.storage, this.ui);
     this.particles = new ParticleSystem();
     this.player = new Player(window.innerWidth * 0.5, 260);
     this.state = "menu";
@@ -80,6 +82,33 @@ class SkyboundGame {
     this.ui.on("start", () => this.startGame("classic"));
     this.ui.on("start-vertical", () => this.startGame("vertical"));
     this.ui.on("customize", () => this.openCustomize());
+    
+    this.ui.on("quests", () => {
+      this.ui.renderQuests(this.questManager.quests, (index) => {
+        if (this.questManager.claimQuest(index)) {
+          this.audio.point();
+          this.ui.renderQuests(this.questManager.quests, this.ui.callbacks["quests-claim"]); // Re-render
+        }
+      });
+      // Need a hack to bind claim action inside renderQuests, done inside renderQuests directly.
+      this.ui.show("quests");
+    });
+    
+    this.ui.on("summon", () => {
+      this.ui.renderSummon(this.storage.getTickets());
+      this.ui.show("summon");
+    });
+    
+    this.ui.on("roll-gacha", () => {
+      const res = this.gachaSystem.draw();
+      if (!res.success) {
+        this.ui.toast("Error", res.message);
+        return;
+      }
+      this.audio.powerUp("double"); // Nice sound
+      this.ui.showSummonResult(true, res.shape, res.name || res.message);
+    });
+
     this.ui.on("settings", () => this.ui.show("settings"));
     this.ui.on("credits", () => this.ui.show("credits"));
     this.ui.on("back-menu", () => this.goMenu());
@@ -248,6 +277,7 @@ class SkyboundGame {
     this.powerTimer = 2.4;
     this.combo = 0;
     this.multiplier = 1;
+    this.questManager.emit("game_played", 1);
     this.nextPipeSequence = 1;
     this.biomeIndex = 0;
     this.previousBiomeIndex = 0;
@@ -484,6 +514,8 @@ class SkyboundGame {
       if (!obs.scored && obs.y > this.player.y) {
         obs.scored = true;
         this.score += 1;
+        this.questManager.emit("score_update", this.score);
+        this.questManager.emit("pipe_passed", 1);
         this.ui.updateScore(this.score);
         this.audio.point();
         this.scoreTexts.push({ x: this.player.x + 34, y: this.player.y - 26, text: "+1", life: 0.8, alpha: 1 });
@@ -613,6 +645,7 @@ class SkyboundGame {
 
         const amount = this.player.doubleScore > 0 ? 2 : 1;
         this.score += amount;
+        this.questManager.emit("score_update", this.score);
         this.streak += amount;
         this.ui.updateScore(this.score);
         this.audio.point();
@@ -657,6 +690,7 @@ class SkyboundGame {
       if (powerUp.collidesWith(this.player)) {
         powerUp.collected = true;
         this.activatePower(powerUp.type);
+        this.questManager.emit("power_up", powerUp.type);
       }
     });
   }
