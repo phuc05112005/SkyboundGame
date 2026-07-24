@@ -21,7 +21,11 @@ class GameStorage {
         accent: "#ff7b54",
         glow: "#ffd166"
       },
-      achievements: {}
+      achievements: {},
+      tickets: 0,
+      unlockedSkins: ["classic", "swift", "owl"], // Default free skins
+      quests: [],
+      lastQuestDate: null
     };
     this.data = this.load();
   }
@@ -41,7 +45,11 @@ class GameStorage {
       ...data,
       settings: { ...this.defaults.settings, ...(data.settings || {}) },
       skin: { ...this.defaults.skin, ...(data.skin || {}) },
-      achievements: { ...this.defaults.achievements, ...(data.achievements || {}) }
+      achievements: { ...this.defaults.achievements, ...(data.achievements || {}) },
+      unlockedSkins: data.unlockedSkins || this.defaults.unlockedSkins,
+      quests: data.quests || [],
+      tickets: data.tickets || 0,
+      lastQuestDate: data.lastQuestDate || null
     };
   }
 
@@ -95,5 +103,44 @@ class GameStorage {
 
   hasAchievement(id) {
     return Boolean(this.data.achievements[id]);
+  }
+
+  getTickets() {
+    return this.data.tickets;
+  }
+
+  addTickets(amount) {
+    this.data.tickets += amount;
+    this.save();
+  }
+
+  spendTicket() {
+    if (this.data.tickets > 0) {
+      this.data.tickets--;
+      this.save();
+      return true;
+    }
+    return false;
+  }
+
+  unlockSkin(shape) {
+    if (!this.data.unlockedSkins.includes(shape)) {
+      this.data.unlockedSkins.push(shape);
+      this.save();
+    }
+  }
+
+  hasSkin(shape) {
+    return this.data.unlockedSkins.includes(shape);
+  }
+
+  getQuests() {
+    return this.data.quests;
+  }
+
+  saveQuests(quests, dateStr) {
+    this.data.quests = quests;
+    this.data.lastQuestDate = dateStr;
+    this.save();
   }
 }

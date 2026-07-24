@@ -111,7 +111,9 @@ class Player {
       rocket: Player.drawRocket,
       butterfly: Player.drawButterfly,
       bat: Player.drawBat,
-      phoenix: Player.drawPhoenix
+      phoenix: Player.drawPhoenix,
+      mech: Player.drawMech,
+      nebula: Player.drawNebula
     }[skin.shape] || Player.drawClassic;
 
     if (effectsEnabled && (shield > 0 || ghost > 0)) Player.drawAura(ctx, skin, wingTime, shield, ghost);
@@ -157,7 +159,9 @@ class Player {
       rocket: { x: -2, y: 0, rx: 56, ry: 28, rotation: 0 },
       butterfly: { x: 0, y: 0, rx: 43, ry: 48 + flap * 4, rotation: 0 },
       bat: { x: 0, y: -1, rx: 52, ry: 36 + flap * 5, rotation: 0 },
-      phoenix: { x: -4, y: 3, rx: 55, ry: 45 + flap * 4, rotation: -0.08 }
+      phoenix: { x: -4, y: 3, rx: 55, ry: 45 + flap * 4, rotation: -0.08 },
+      mech: { x: 0, y: 0, rx: 50, ry: 35 + flap * 2, rotation: 0 },
+      nebula: { x: 0, y: 0, rx: 60, ry: 60 + flap * 4, rotation: 0 }
     };
     return bounds[skin.shape] || bounds.classic;
   }
@@ -643,5 +647,109 @@ class Player {
     ctx.fill();
     ctx.shadowBlur = 0;
     Player.drawEye(ctx, 12, -4, 5);
+  }
+
+  static drawMech(ctx, skin, wingTime) {
+    const flap = Math.sin(wingTime) * 10;
+    // Cyber-tech wings
+    ctx.fillStyle = skin.wing;
+    ctx.strokeStyle = skin.accent;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(-10, 0);
+    ctx.lineTo(-20, -30 - flap);
+    ctx.lineTo(-40, -40 - flap);
+    ctx.lineTo(-25, -15 - flap*0.5);
+    ctx.lineTo(-45, -5 - flap*0.2);
+    ctx.lineTo(-20, 10);
+    ctx.fill();
+    ctx.stroke();
+
+    // Body chassis
+    ctx.fillStyle = skin.body;
+    ctx.beginPath();
+    ctx.moveTo(30, 0);
+    ctx.lineTo(10, 15);
+    ctx.lineTo(-20, 10);
+    ctx.lineTo(-30, -5);
+    ctx.lineTo(-10, -15);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Energy core
+    ctx.shadowColor = skin.glow;
+    ctx.shadowBlur = 15;
+    ctx.fillStyle = skin.glow;
+    ctx.beginPath();
+    ctx.arc(-5, 0, 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+    // Head/visor
+    ctx.fillStyle = "#222";
+    ctx.beginPath();
+    ctx.moveTo(10, -15);
+    ctx.lineTo(25, -5);
+    ctx.lineTo(35, 2);
+    ctx.lineTo(10, 5);
+    ctx.closePath();
+    ctx.fill();
+
+    // Glowing eye slit
+    ctx.shadowColor = skin.accent;
+    ctx.shadowBlur = 10;
+    ctx.strokeStyle = skin.accent;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(15, -5);
+    ctx.lineTo(30, 0);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+  }
+
+  static drawNebula(ctx, skin, wingTime) {
+    const flap = Math.sin(wingTime) * 15;
+    const pulse = Math.sin(wingTime * 3) * 0.2 + 0.8;
+
+    // Ethereal space wings
+    ctx.globalCompositeOperation = "screen";
+    const grad = ctx.createRadialGradient(-10, 0, 5, -20, -30 - flap, 50);
+    grad.addColorStop(0, skin.glow);
+    grad.addColorStop(0.5, skin.accent);
+    grad.addColorStop(1, "transparent");
+
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.ellipse(-20, -20 - flap, 30, 15, -0.5, 0, Math.PI * 2);
+    ctx.fill();
+    
+    ctx.beginPath();
+    ctx.ellipse(-10, 15 + flap*0.5, 20, 10, 0.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Cosmic body
+    const bodyGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, 25);
+    bodyGrad.addColorStop(0, "#fff");
+    bodyGrad.addColorStop(0.2, skin.body);
+    bodyGrad.addColorStop(1, "transparent");
+
+    ctx.fillStyle = bodyGrad;
+    ctx.beginPath();
+    ctx.arc(0, 0, 25 * pulse, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Stardust
+    ctx.fillStyle = "#fff";
+    for(let i=0; i<5; i++) {
+       const a = wingTime * 2 + i * 1.2;
+       const r = 15 + Math.sin(wingTime*5 + i) * 5;
+       ctx.beginPath();
+       ctx.arc(Math.cos(a)*r, Math.sin(a)*r, 1.5, 0, Math.PI*2);
+       ctx.fill();
+    }
+
+    ctx.globalCompositeOperation = "source-over";
+    Player.drawEye(ctx, 10, -2, 5);
   }
 }

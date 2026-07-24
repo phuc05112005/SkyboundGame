@@ -8,7 +8,9 @@ class GameUI {
       settings: document.getElementById("settingsPanel"),
       credits: document.getElementById("creditsPanel"),
       pause: document.getElementById("pausePanel"),
-      gameOver: document.getElementById("gameOverPanel")
+      gameOver: document.getElementById("gameOverPanel"),
+      quests: document.getElementById("questsPanel"),
+      summon: document.getElementById("summonPanel")
     };
     this.hud = document.getElementById("hud");
     this.scoreText = document.getElementById("scoreText");
@@ -43,7 +45,9 @@ class GameUI {
       { id: "rocket", name: "Rocket Chick" },
       { id: "butterfly", name: "Butterfly" },
       { id: "bat", name: "Night Bat" },
-      { id: "phoenix", name: "Phoenix" }
+      { id: "phoenix", name: "Phoenix" },
+      { id: "mech", name: "Mecha Wing" },
+      { id: "nebula", name: "Cosmic Nebula" }
     ];
     this.currentSkin = this.storage.getSkin();
     this.callbacks = {};
@@ -76,7 +80,11 @@ class GameUI {
 
   buildSkinGrid() {
     this.skinGrid.innerHTML = "";
+    const unlocked = this.storage.data.unlockedSkins || ["classic", "swift", "owl"];
     this.skinOptions.forEach((skin) => {
+      // Only show unlocked skins in customization
+      if (!unlocked.includes(skin.id)) return;
+      
       const button = document.createElement("button");
       button.type = "button";
       button.className = "skin-option";
@@ -306,5 +314,65 @@ class GameUI {
     node.innerHTML = `<strong>${title}</strong>${message}`;
     this.toastLayer.appendChild(node);
     window.setTimeout(() => node.remove(), compact ? 2100 : 2900);
+  }
+
+  renderQuests(quests, onClaim) {
+    const list = document.getElementById("questList");
+    list.innerHTML = "";
+    let hasCompleted = false;
+    
+    quests.forEach((q, index) => {
+      if (q.status === "completed") hasCompleted = true;
+      
+      const card = document.createElement("div");
+      card.className = "quest-card";
+      
+      const progressPercent = Math.min(100, Math.round((q.progress / q.target) * 100));
+      
+      card.innerHTML = `
+        <div class="quest-header">
+          <div>
+            <div class="quest-title">${q.title}</div>
+            <div class="quest-desc">${q.description}</div>
+          </div>
+          <button class="quest-claim-btn" ${q.status !== 'completed' ? 'disabled' : ''}>
+            ${q.status === 'claimed' ? 'Claimed' : 'Claim'}
+          </button>
+        </div>
+        <div class="quest-progress-wrap">
+          <div class="quest-progress-bar" style="width: ${progressPercent}%"></div>
+        </div>
+        <div style="text-align: right; font-size: 0.8rem; color: #fff;">${q.progress} / ${q.target}</div>
+      `;
+      
+      const btn = card.querySelector(".quest-claim-btn");
+      if (q.status === "completed") {
+        btn.addEventListener("click", () => onClaim(index));
+      }
+      list.appendChild(card);
+    });
+
+    const badge = document.getElementById("questBadge");
+    if (badge) {
+      badge.classList.toggle("hidden", !hasCompleted);
+    }
+  }
+
+  renderSummon(tickets) {
+    document.getElementById("ticketCount").textContent = tickets;
+    document.getElementById("summonResult").classList.add("hidden");
+  }
+
+  showSummonResult(success, shape, text) {
+    const res = document.getElementById("summonResult");
+    const resText = document.getElementById("summonResultText");
+    res.classList.remove("hidden");
+    resText.textContent = text;
+    this.renderSummon(this.storage.getTickets());
+    
+    if (success && shape) {
+       this.toast("Unlocked Skin!", `You got ${text}`);
+       this.buildSkinGrid(); // Refresh grid with new skin
+    }
   }
 }
