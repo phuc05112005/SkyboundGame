@@ -364,6 +364,34 @@ class SkyboundGame {
     this.lastTime = performance.now();
   }
 
+  pollGamepad() {
+    if (!navigator.getGamepads) return;
+    const gamepads = navigator.getGamepads();
+    for (let i = 0; i < gamepads.length; i++) {
+      const gp = gamepads[i];
+      if (!gp) continue;
+      
+      if (gp.buttons[0] && gp.buttons[0].pressed) {
+        if (!this.gamepadButtonPressed) {
+          this.gamepadButtonPressed = true;
+          this.handlePrimaryAction();
+        }
+      } else {
+        this.gamepadButtonPressed = false;
+      }
+      
+      if ((gp.buttons[9] && gp.buttons[9].pressed) || (gp.buttons[1] && gp.buttons[1].pressed)) {
+        if (!this.gamepadStartPressed) {
+          this.gamepadStartPressed = true;
+          this.togglePause();
+        }
+      } else {
+        this.gamepadStartPressed = false;
+      }
+      break;
+    }
+  }
+
   loop(time) {
     // requestAnimationFrame gives smooth pacing; delta time keeps physics stable across devices.
     const rawDt = Math.min(0.033, (time - this.lastTime) / 1000 || 0);
@@ -376,6 +404,7 @@ class SkyboundGame {
   }
 
   update(rawDt, dt) {
+    this.pollGamepad();
     this.elapsed += rawDt;
     this.shake = Math.max(0, this.shake - rawDt * 30);
     this.shakeX = (Math.random() - 0.5) * this.shake;
@@ -2146,7 +2175,8 @@ class SkyboundGame {
     }
 
     ctx.fillStyle = "rgba(8, 42, 54, 0.16)";
-    for (let x = -54 - this.groundOffset * 1.15; x < this.width + 54; x += 54) {
+    const offset3 = (this.groundOffset * 1.15) % 54;
+    for (let x = -54 - offset3; x < this.width + 54; x += 54) {
       ctx.beginPath();
       ctx.ellipse(Math.round(x + 18), top + this.groundHeight - 18, 18, 4, 0, 0, Math.PI * 2);
       ctx.fill();

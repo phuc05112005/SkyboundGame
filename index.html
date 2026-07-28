@@ -24,8 +24,6 @@
         <button class="primary-btn" data-action="start">Start Game</button>
         <button class="ghost-btn" data-action="start-vertical">Skybound Vertical (New Challenge)</button>
         <button class="ghost-btn" data-action="customize">Customize Bird</button>
-        <button class="ghost-btn" data-action="quests">Daily Quests <span id="questBadge" class="badge hidden">!</span></button>
-        <button class="ghost-btn" data-action="summon">Summon Skin (Gacha)</button>
         <button class="ghost-btn" data-action="settings">Settings</button>
         <button class="ghost-btn" data-action="credits">Credits</button>
       </div>
@@ -76,34 +74,6 @@
         <button class="primary-btn" data-action="save-skin">Apply Skin</button>
         <button class="ghost-btn" data-action="random-skin">Randomize</button>
         <button class="ghost-btn" data-action="reset-skin">Reset</button>
-        <button class="ghost-btn" data-action="back-menu">Back</button>
-      </div>
-    </section>
-
-    <section id="questsPanel" class="screen glass-panel wide-panel" aria-labelledby="questsTitle">
-      <h2 id="questsTitle">Daily Quests</h2>
-      <p class="subtitle">Complete quests to earn Summon Tickets!</p>
-      <div id="questList" class="quest-list">
-        <!-- Quests injected here -->
-      </div>
-      <div class="panel-actions">
-        <button class="ghost-btn" data-action="back-menu">Back</button>
-      </div>
-    </section>
-
-    <section id="summonPanel" class="screen glass-panel wide-panel" aria-labelledby="summonTitle">
-      <h2 id="summonTitle">Premium Summon</h2>
-      <div class="summon-layout">
-        <div class="summon-status">
-          <span>Tickets available: </span>
-          <strong id="ticketCount">0</strong>
-        </div>
-        <div class="summon-result hidden" id="summonResult">
-          <h3 id="summonResultText">You got: Legendary Dragon!</h3>
-        </div>
-      </div>
-      <div class="panel-actions">
-        <button class="primary-btn summon-btn" data-action="roll-gacha">Summon (1 Ticket)</button>
         <button class="ghost-btn" data-action="back-menu">Back</button>
       </div>
     </section>
@@ -186,14 +156,12 @@
   </main>
 
   <script src="js/storage.js"></script>
-  <script src="js/quest_gacha.js"></script>
   <script src="js/audio.js"></script>
   <script src="js/particle.js"></script>
   <script src="js/player.js"></script>
   <script src="js/pipe.js"></script>
   <script src="js/vertical_obstacle.js"></script>
   <script src="js/ui.js"></script>
-  <script src="js/constants.js"></script>
   <script src="js/game.js"></script>
 </body>
 
