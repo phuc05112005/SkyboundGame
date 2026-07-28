@@ -1,0 +1,16 @@
+{
+  "name": "Skybound Wings",
+  "short_name": "Skybound",
+  "description": "A polished HTML5 Canvas arcade flying game.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#87CEEB",
+  "theme_color": "#87CEEB",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

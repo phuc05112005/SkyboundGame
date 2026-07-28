@@ -67,7 +67,7 @@ class QuestManager {
       if (q.progress >= q.target) {
         q.progress = q.target;
         q.status = "completed";
-        this.ui.showToast(`Quest Completed: ${q.title}!`);
+        this.ui.toast("Quest Completed", q.title);
       }
       updated = true;
     });
